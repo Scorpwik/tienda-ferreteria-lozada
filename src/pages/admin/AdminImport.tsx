@@ -24,6 +24,10 @@ const EXAMPLE = `{
       "origin_id": 1855,
       "name": "Tornillo para madera",
       "category_id": "tornillos",
+      "slug": "tornillo-para-madera",
+      "meta_title": "Tornillo para madera 6x2 | Ferretería Lozada",
+      "meta_description": "Tornillo para madera en varias medidas. Cotiza por WhatsApp en Chillogallo.",
+      "search_tags": ["tornillo", "madera", "fijaciones"],
       "variants": [
         {
           "origin_id": 185501,

@@ -374,6 +374,43 @@ export const importVariantSchema = z.object({
   availability: availabilitySchema.optional().catch('consultar'),
 })
 
+/**
+ * Campos SEO opcionales del normalizador. Si la clave no viene en el JSON,
+ * queda `undefined` y el upsert no la toca (no borra lo ya guardado).
+ */
+function optionalImportLine(maxLength: number) {
+  return z
+    .union([z.string(), z.null(), z.undefined()])
+    .transform((value) => {
+      if (value === undefined) return undefined
+      if (value == null) return null
+      const cleaned = cleanSingleLine(value, maxLength)
+      return cleaned.length > 0 ? cleaned : null
+    })
+}
+
+function optionalImportParagraph(maxLength: number) {
+  return z
+    .union([z.string(), z.null(), z.undefined()])
+    .transform((value) => {
+      if (value === undefined) return undefined
+      if (value == null) return null
+      const cleaned = cleanMultiLine(value, maxLength)
+      return cleaned.length > 0 ? cleaned : null
+    })
+}
+
+const optionalSearchTags = z
+  .union([z.array(z.string()), z.null(), z.undefined()])
+  .transform((value) => {
+    if (value === undefined) return undefined
+    if (value == null) return null
+    const cleaned = value
+      .map((tag) => cleanSingleLine(tag, 60))
+      .filter((tag) => tag.length > 0)
+    return cleaned.length > 0 ? cleaned : null
+  })
+
 export const importProductSchema = z.object({
   origin_id: z.coerce
     .number()
@@ -385,6 +422,10 @@ export const importProductSchema = z.object({
     .refine((v) => v.length >= 2, 'El nombre del producto es obligatorio.'),
   category_id: importRefId.nullish(),
   description: optionalParagraph(2000),
+  slug: optionalImportLine(160),
+  meta_title: optionalImportLine(70),
+  meta_description: optionalImportParagraph(320),
+  search_tags: optionalSearchTags,
   variants: z.array(importVariantSchema).default([]),
 })
 

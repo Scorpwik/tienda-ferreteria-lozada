@@ -90,6 +90,8 @@ export type ProductDetail = {
   origin_id: number | null
   name: string
   description: string | null
+  metaTitle: string | null
+  metaDescription: string | null
   isOffer: boolean
   isBestseller: boolean
   category: Pick<Category, 'id' | 'name' | 'slug'> | null

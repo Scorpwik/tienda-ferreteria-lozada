@@ -10,10 +10,10 @@ import { useSettings } from '@/features/settings/SettingsProvider'
 import { fetchCategoryTree } from '@/data/categories'
 import { fetchHighlighted } from '@/data/products'
 import { useAsync } from '@/lib/useAsync'
-import { useDocumentMeta, useStructuredData } from '@/lib/useDocumentMeta'
+import { useDocumentMeta } from '@/lib/useDocumentMeta'
 import { useIsDesktop } from '@/animation/useIsDesktop'
 import { useReducedMotion } from '@/animation/useReducedMotion'
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useRef } from 'react'
 import gsap from 'gsap'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
 import type { ProductCard } from '@/lib/domain'
@@ -28,43 +28,6 @@ export function HomePage() {
     description: settings.seo.description,
     image: settings.seo.ogImage || undefined,
   })
-
-  // Datos estructurados de negocio local, para que Google muestre direccion y
-  // horario en el resultado de busqueda.
-  const structuredData = useMemo(
-    () => ({
-      '@context': 'https://schema.org',
-      '@type': 'HardwareStore',
-      name: settings.businessName,
-      description: settings.seo.description,
-      telephone: `+${settings.whatsappNumber}`,
-      address: {
-        '@type': 'PostalAddress',
-        streetAddress: settings.address,
-        addressLocality: 'Quito',
-        addressRegion: 'Pichincha',
-        addressCountry: 'EC',
-      },
-      openingHoursSpecification: [
-        {
-          '@type': 'OpeningHoursSpecification',
-          dayOfWeek: [
-            'Monday',
-            'Tuesday',
-            'Wednesday',
-            'Thursday',
-            'Friday',
-          ],
-          opens: '08:30',
-          closes: '17:15',
-        },
-      ],
-      foundingDate: '2002',
-      areaServed: ['Chillogallo', 'Ciudadela Ibarra', 'Conocoto', 'Quito'],
-    }),
-    [settings],
-  )
-  useStructuredData(structuredData)
 
   const { data: tree } = useAsync(fetchCategoryTree, [])
   const offers = useAsync(() => fetchHighlighted('offer', 8), [])

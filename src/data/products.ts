@@ -283,6 +283,8 @@ const DETAIL_SELECT = `
   origin_id,
   name,
   description,
+  meta_title,
+  meta_description,
   is_offer,
   is_bestseller,
   category:categories!products_category_id_fkey (
@@ -300,6 +302,8 @@ type DetailRow = {
   origin_id: number | null
   name: string
   description: string | null
+  meta_title: string | null
+  meta_description: string | null
   is_offer: boolean
   is_bestseller: boolean
   category: {
@@ -382,6 +386,8 @@ async function hydrateDetail(row: DetailRow): Promise<ProductDetail> {
     origin_id: row.origin_id,
     name: row.name,
     description: row.description,
+    metaTitle: row.meta_title,
+    metaDescription: row.meta_description,
     isOffer: row.is_offer,
     isBestseller: row.is_bestseller,
     category: row.category

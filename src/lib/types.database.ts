@@ -251,8 +251,12 @@ export type Database = {
           id: string
           is_bestseller: boolean
           is_offer: boolean
+          meta_description: string | null
+          meta_title: string | null
           name: string
           origin_id: number | null
+          search_tags: string[] | null
+          slug: string | null
           updated_at: string
         }
         Insert: {
@@ -262,8 +266,12 @@ export type Database = {
           id?: string
           is_bestseller?: boolean
           is_offer?: boolean
+          meta_description?: string | null
+          meta_title?: string | null
           name: string
           origin_id?: number | null
+          search_tags?: string[] | null
+          slug?: string | null
           updated_at?: string
         }
         Update: {
@@ -273,8 +281,12 @@ export type Database = {
           id?: string
           is_bestseller?: boolean
           is_offer?: boolean
+          meta_description?: string | null
+          meta_title?: string | null
           name?: string
           origin_id?: number | null
+          search_tags?: string[] | null
+          slug?: string | null
           updated_at?: string
         }
         Relationships: [

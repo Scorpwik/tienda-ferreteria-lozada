@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { Helmet } from 'react-helmet-async'
 import { useParams } from 'react-router-dom'
 import { Breadcrumbs } from '@/components/Breadcrumbs'
 import { AvailabilityBadge } from '@/components/AvailabilityBadge'
@@ -13,13 +14,38 @@ import { fetchProductById, fetchProductByOriginId } from '@/data/products'
 import { formatPrice, variantLabel } from '@/lib/format'
 import { parseProductParam, categoryPath } from '@/lib/routes'
 import { useAsync } from '@/lib/useAsync'
-import { useDocumentMeta } from '@/lib/useDocumentMeta'
 import {
   pickPrimaryImage,
   sortProductImages,
+  type ProductDetail,
   type ProductImage as ProductImageRow,
   type Variant,
 } from '@/lib/domain'
+
+function productJsonLd(data: ProductDetail) {
+  const available = data.variants.filter(
+    (variant) => variant.availability === 'disponible' && variant.price > 0,
+  )
+  const prices = available.map((variant) => variant.price)
+  const lowPrice = prices.length > 0 ? Math.min(...prices) : undefined
+  const highPrice = prices.length > 0 ? Math.max(...prices) : undefined
+
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'Product',
+    name: data.name,
+    description: data.metaDescription ?? data.description ?? undefined,
+    brand: { '@type': 'Brand', name: 'Ferretería Lozada' },
+    offers: {
+      '@type': 'AggregateOffer',
+      priceCurrency: 'USD',
+      ...(lowPrice != null ? { lowPrice: String(lowPrice) } : {}),
+      ...(highPrice != null ? { highPrice: String(highPrice) } : {}),
+      offerCount: String(available.length),
+      availability: 'https://schema.org/InStock',
+    },
+  }
+}
 
 export function ProductPage() {
   const { originId } = useParams()
@@ -33,14 +59,9 @@ export function ProductPage() {
       : fetchProductById(parsed.id)
   }, [originId])
 
-  useDocumentMeta({
-    title: data ? `${data.name} | Ferretería Lozada` : 'Producto | Ferretería Lozada',
-    description: data
-      ? (data.description ??
-        `${data.name} disponible en Ferretería Lozada, Chillogallo. Consulta medidas y precios y cotiza por WhatsApp.`)
-      : undefined,
-    image: data ? (pickPrimaryImage(data.images) ?? undefined) : undefined,
-  })
+  const pageTitle = data ? data.metaTitle || data.name : 'Producto'
+  const pageDescription = data?.metaDescription ?? undefined
+  const jsonLd = useMemo(() => (data ? productJsonLd(data) : null), [data])
 
   if (error) {
     return (
@@ -83,6 +104,21 @@ export function ProductPage() {
 
   return (
     <div className="container-page py-8 lg:pb-28">
+      <Helmet>
+        <title>{pageTitle}</title>
+        {pageDescription ? (
+          <meta name="description" content={pageDescription} />
+        ) : null}
+        <meta property="og:title" content={pageTitle} />
+        {pageDescription ? (
+          <meta property="og:description" content={pageDescription} />
+        ) : null}
+        <meta property="og:type" content="product" />
+        {jsonLd ? (
+          <script type="application/ld+json">{JSON.stringify(jsonLd)}</script>
+        ) : null}
+      </Helmet>
+
       <Breadcrumbs
         items={[
           { label: 'Inicio', to: '/' },

@@ -16,6 +16,7 @@ import { ScrollToTop } from '@/layout/ScrollToTop'
 import { LenisProvider } from '@/animation/LenisProvider'
 import { RevealOnScroll } from '@/animation/RevealOnScroll'
 import { PageTransition } from '@/animation/PageTransition'
+import { useStructuredData } from '@/lib/useDocumentMeta'
 import { HomePage } from '@/pages/Home'
 import { CatalogPage } from '@/pages/Catalog'
 import { CategoryPage } from '@/pages/Category'
@@ -25,6 +26,28 @@ import { QuotePage } from '@/pages/Quote'
 import { AboutPage } from '@/pages/About'
 import { PromotionsPage } from '@/pages/Promotions'
 import { NotFoundPage } from '@/pages/NotFound'
+
+/** LocalBusiness una sola vez en el árbol (no por página). */
+const HARDWARE_STORE_JSON_LD = {
+  '@context': 'https://schema.org',
+  '@type': 'HardwareStore',
+  name: 'Ferretería Lozada',
+  address: {
+    '@type': 'PostalAddress',
+    streetAddress: 'Av. Mariscal Sucre s27-184',
+    addressLocality: 'Chillogallo',
+    addressRegion: 'Quito',
+    postalCode: '170607',
+    addressCountry: 'EC',
+  },
+  telephone: '+593995307272',
+  openingHours: 'Mo-Fr 08:30-17:15',
+  geo: {
+    '@type': 'GeoCoordinates',
+    latitude: -0.2749581,
+    longitude: -78.5523698,
+  },
+} as const
 
 /**
  * El panel va en chunks aparte: el visitante de la tienda no descarga ni una
@@ -140,6 +163,8 @@ function PublicShell() {
 }
 
 export function App() {
+  useStructuredData(HARDWARE_STORE_JSON_LD)
+
   return (
     <SettingsProvider>
       <RouteAnalytics />

@@ -299,20 +299,20 @@ async function upsertProducts(
   let created = 0
   let updated = 0
 
+  type ProductPayload = {
+    origin_id: number
+    name: string
+    description: string | null
+    category_id: string | null
+    slug?: string | null
+    meta_title?: string | null
+    meta_description?: string | null
+    search_tags?: string[] | null
+  }
+
   // Upsert en lotes: insert y update por separado para poder contar.
-  const toInsert: {
-    origin_id: number
-    name: string
-    description: string | null
-    category_id: string | null
-  }[] = []
-  const toUpdate: {
-    id: string
-    origin_id: number
-    name: string
-    description: string | null
-    category_id: string | null
-  }[] = []
+  const toInsert: ProductPayload[] = []
+  const toUpdate: (ProductPayload & { id: string })[] = []
 
   for (const product of products) {
     let categoryUuid: string | null = null
@@ -335,11 +335,20 @@ async function upsertProducts(
       }
     }
 
-    const payload = {
+    const payload: ProductPayload = {
       origin_id: product.origin_id,
       name: product.name,
       description: product.description,
       category_id: categoryUuid,
+    }
+    // Solo pisa SEO si el JSON del normalizador trae la clave.
+    if (product.slug !== undefined) payload.slug = product.slug
+    if (product.meta_title !== undefined) payload.meta_title = product.meta_title
+    if (product.meta_description !== undefined) {
+      payload.meta_description = product.meta_description
+    }
+    if (product.search_tags !== undefined) {
+      payload.search_tags = product.search_tags
     }
 
     const existingId = existing.get(product.origin_id)
@@ -366,14 +375,11 @@ async function upsertProducts(
     // Supabase no hace update masivo con filas distintas: una a una en lote.
     await Promise.all(
       group.map(async (row) => {
+        const { id, ...payload } = row
         const { error } = await supabase
           .from('products')
-          .update({
-            name: row.name,
-            description: row.description,
-            category_id: row.category_id,
-          })
-          .eq('id', row.id)
+          .update(payload)
+          .eq('id', id)
         if (error) throw new Error(readableDbError(error))
       }),
     )
