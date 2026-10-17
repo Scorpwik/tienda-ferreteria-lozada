@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import type { Dispatch, SetStateAction } from 'react'
 
 export type AsyncState<T> = {
   data: T | undefined
   loading: boolean
   error: Error | null
   reload: () => void
+  setData: Dispatch<SetStateAction<T | undefined>>
 }
 
 /**
@@ -48,7 +50,7 @@ export function useAsync<T>(
 
   const reload = useCallback(() => setNonce((value) => value + 1), [])
 
-  return { data, loading, error, reload }
+  return { data, loading, error, reload, setData }
 }
 
 /** Retrasa un valor, para no disparar una consulta por cada tecla. */

@@ -10,7 +10,8 @@ import { cleanClientName, cleanMultiLine, cleanSingleLine } from './sanitize'
 /** Campo de texto opcional: vacio se guarda como null, no como ''. */
 function optionalLine(maxLength: number) {
   return z
-    .union([z.string(), z.null(), z.undefined()])
+    .union([z.string(), z.null()])
+    .optional()
     .transform((value) => {
       if (value == null) return null
       const cleaned = cleanSingleLine(value, maxLength)
@@ -20,7 +21,8 @@ function optionalLine(maxLength: number) {
 
 function optionalParagraph(maxLength: number) {
   return z
-    .union([z.string(), z.null(), z.undefined()])
+    .union([z.string(), z.null()])
+    .optional()
     .transform((value) => {
       if (value == null) return null
       const cleaned = cleanMultiLine(value, maxLength)
@@ -344,9 +346,13 @@ const importRefId = z
   .transform((value) => String(value).trim())
   .refine((value) => value.length > 0, 'El id de categoria es obligatorio.')
 
+/**
+ * Claves del JSON del normalizador (español): `nombre`, `id_origen`, etc.
+ * El upsert a Supabase mapea a columnas en inglés (`name`, `origin_id`).
+ */
 export const importCategorySchema = z.object({
   id: importRefId,
-  name: z
+  nombre: z
     .string()
     .transform((v) => cleanSingleLine(v, 80))
     .refine((v) => v.length >= 2, 'El nombre de categoria es obligatorio.'),
@@ -358,20 +364,34 @@ export const importCategorySchema = z.object({
   sort_order: z.coerce.number().int().min(0).max(9999).optional(),
 })
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+}
+
+const importPrecio = z.coerce
+  .number()
+  .refine((v) => v >= 0, 'El precio no puede ser negativo.')
+  .refine((v) => v <= 1000000, 'Precio fuera de rango.')
+  .nullish()
+  .catch(null)
+
+/**
+ * Variantes del normalizador (claves en español).
+ * Upsert: id_origen→origin_id, medida→size, presentacion→presentation,
+ * forma_venta→sale_unit, precio→price, codigo_barra→barcode.
+ * No forzar availability: si falta, el importador publica 'disponible'
+ * cuando hay precio > 0. `.catch('consultar')` ocultaba todos los precios.
+ */
 export const importVariantSchema = z.object({
-  origin_id: z.coerce.number().int().positive().nullish().catch(null),
-  size: optionalLine(60),
+  id_origen: z.coerce.number().int().positive().nullish().catch(null),
+  nombre: optionalLine(160),
+  medida: optionalLine(60),
   color: optionalLine(40),
-  presentation: optionalLine(60),
-  sale_unit: optionalLine(30),
-  price: z.coerce
-    .number()
-    .refine((v) => v >= 0, 'El precio no puede ser negativo.')
-    .refine((v) => v <= 1000000, 'Precio fuera de rango.')
-    .nullish()
-    .catch(null),
-  barcode: optionalLine(40),
-  availability: availabilitySchema.optional().catch('consultar'),
+  presentacion: optionalLine(60),
+  forma_venta: optionalLine(30),
+  precio: importPrecio,
+  codigo_barra: optionalLine(40),
+  availability: availabilitySchema.optional(),
 })
 
 /**
@@ -380,7 +400,8 @@ export const importVariantSchema = z.object({
  */
 function optionalImportLine(maxLength: number) {
   return z
-    .union([z.string(), z.null(), z.undefined()])
+    .union([z.string(), z.null()])
+    .optional()
     .transform((value) => {
       if (value === undefined) return undefined
       if (value == null) return null
@@ -391,7 +412,8 @@ function optionalImportLine(maxLength: number) {
 
 function optionalImportParagraph(maxLength: number) {
   return z
-    .union([z.string(), z.null(), z.undefined()])
+    .union([z.string(), z.null()])
+    .optional()
     .transform((value) => {
       if (value === undefined) return undefined
       if (value == null) return null
@@ -401,7 +423,8 @@ function optionalImportParagraph(maxLength: number) {
 }
 
 const optionalSearchTags = z
-  .union([z.array(z.string()), z.null(), z.undefined()])
+  .union([z.array(z.string()), z.null()])
+  .optional()
   .transform((value) => {
     if (value === undefined) return undefined
     if (value == null) return null
@@ -411,31 +434,159 @@ const optionalSearchTags = z
     return cleaned.length > 0 ? cleaned : null
   })
 
-export const importProductSchema = z.object({
-  origin_id: z.coerce
-    .number()
-    .int()
-    .positive('Cada producto necesita un origin_id del sistema de facturacion.'),
-  name: z
-    .string()
-    .transform((v) => cleanSingleLine(v, 160))
-    .refine((v) => v.length >= 2, 'El nombre del producto es obligatorio.'),
-  category_id: importRefId.nullish(),
-  description: optionalParagraph(2000),
-  slug: optionalImportLine(160),
-  meta_title: optionalImportLine(70),
-  meta_description: optionalImportParagraph(320),
-  search_tags: optionalSearchTags,
-  variants: z.array(importVariantSchema).default([]),
-})
+export const importProductSchema = z.preprocess(
+  (raw) => {
+    if (!isRecord(raw)) return raw
+    return {
+      ...raw,
+      description: raw.description ?? raw.descripcion,
+      variants: raw.variants ?? raw.variantes,
+    }
+  },
+  z.object({
+    id_origen: z.coerce
+      .number()
+      .int()
+      .positive('Cada producto necesita un id_origen del sistema de facturacion.'),
+    nombre: z
+      .string()
+      .transform((v) => cleanSingleLine(v, 160))
+      .refine((v) => v.length >= 2, 'El nombre del producto es obligatorio.'),
+    categoria_id: importRefId.nullish(),
+    description: optionalParagraph(2000),
+    slug: optionalImportLine(160),
+    meta_title: optionalImportLine(70),
+    meta_description: optionalImportParagraph(320),
+    search_tags: optionalSearchTags,
+    // El normalizador a veces pone el SKU en el producto, sin array variants.
+    medida: optionalLine(60),
+    color: optionalLine(40),
+    presentacion: optionalLine(60),
+    forma_venta: optionalLine(30),
+    precio: importPrecio,
+    codigo_barra: optionalLine(40),
+    variants: z.array(importVariantSchema).default([]),
+  }),
+)
 
-export const catalogImportSchema = z.object({
-  categories: z.array(importCategorySchema).default([]),
-  products: z
-    .array(importProductSchema)
-    .max(5000, 'Máximo 5000 productos por importación. Divide el JSON en partes.'),
-})
+export const catalogImportSchema = z.preprocess(
+  (raw) => {
+    if (!isRecord(raw)) return raw
+    const inner = isRecord(raw.catalog) ? raw.catalog : raw
+    if (!isRecord(inner)) return inner
+    return {
+      ...inner,
+      categories: inner.categories ?? inner.categorias,
+      products: inner.products ?? inner.productos,
+    }
+  },
+  z.object({
+    categories: z.array(importCategorySchema).default([]),
+    products: z
+      .array(importProductSchema)
+      .max(5000, 'Máximo 5000 productos por importación. Divide el JSON en partes.'),
+  }),
+)
 
 export type CatalogImport = z.infer<typeof catalogImportSchema>
 export type ImportProduct = z.infer<typeof importProductSchema>
 export type ImportVariant = z.infer<typeof importVariantSchema>
+
+/** Talla tipo 10-04 / 48-52 al final del nombre (abrazaderas Titan, tee 3-2). */
+const trailingRangeSize = /(?:^|[\s-])(\d+(?:[.,]\d+)?-\d+(?:[.,]\d+)?)\s*$/
+
+export function inferSizeFromName(
+  medida: string | null | undefined,
+  nombre: string | null | undefined,
+): string | null {
+  const existing = medida?.trim() ?? ''
+  if (existing.length > 0) return existing
+  if (!nombre) return null
+  const match = nombre.trim().match(trailingRangeSize)
+  return match?.[1]?.replace(',', '.') ?? null
+}
+
+function stripTrailingSize(nombre: string, sizes: string[]): string {
+  let next = nombre.trim()
+  const unique = [...new Set(sizes.filter(Boolean))].sort((a, b) => b.length - a.length)
+  for (const size of unique) {
+    const escaped = size.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    const pattern = new RegExp(`[\\s-]+${escaped}$`, 'i')
+    if (pattern.test(next)) {
+      const stripped = next.replace(pattern, '').trim()
+      if (stripped.length >= 2) return stripped
+    }
+  }
+  return next
+}
+
+function skuVariantFromProduct(product: ImportProduct): ImportVariant {
+  return {
+    id_origen: product.id_origen,
+    nombre: product.nombre,
+    medida: product.medida ?? null,
+    color: product.color ?? null,
+    presentacion: product.presentacion ?? null,
+    forma_venta: product.forma_venta ?? null,
+    precio: product.precio ?? null,
+    codigo_barra: product.codigo_barra ?? null,
+    availability: undefined,
+  }
+}
+
+/**
+ * El JSON real a menudo es una lista plana de SKUs (precio/medida en el
+ * producto, sin `variants[]`). La tienda solo muestra precio desde
+ * `product_variants`, así que aquí se agrupa por nombre+categoría y se
+ * crea una variante por cada SKU.
+ */
+export function normalizeImportedCatalog(catalog: CatalogImport): CatalogImport {
+  const families: ImportProduct[] = []
+  const buckets = new Map<string, ImportProduct[]>()
+
+  for (const product of catalog.products) {
+    if (product.variants.length > 0) {
+      families.push(product)
+      continue
+    }
+    const key = `${product.nombre.toLowerCase()}::${product.categoria_id ?? ''}`
+    const list = buckets.get(key) ?? []
+    list.push(product)
+    buckets.set(key, list)
+  }
+
+  for (const list of buckets.values()) {
+    const head = list[0]
+    if (!head) continue
+    families.push({
+      ...head,
+      variants: list.map(skuVariantFromProduct),
+    })
+  }
+
+  const repaired = families.map((product) => {
+    const variants = product.variants.map((variant) => ({
+      ...variant,
+      medida: inferSizeFromName(variant.medida, variant.nombre ?? product.nombre),
+    }))
+    const sizes = variants
+      .map((variant) => variant.medida)
+      .filter((size): size is string => Boolean(size))
+    return {
+      ...product,
+      nombre: sizes.length > 0 ? stripTrailingSize(product.nombre, sizes) : product.nombre,
+      variants,
+    }
+  })
+
+  return { ...catalog, products: repaired }
+}
+
+/** Si el JSON no trae availability, publicar precio cuando es > 0. */
+export function resolveImportAvailability(
+  precio: number | null | undefined,
+  availability?: (typeof availabilitySchema)['_output'],
+): (typeof availabilitySchema)['_output'] {
+  if (availability) return availability
+  return (precio ?? 0) > 0 ? 'disponible' : 'consultar'
+}

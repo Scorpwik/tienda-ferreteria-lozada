@@ -27,7 +27,7 @@ export function AdminLayout() {
   return (
     <div className="bg-ink-50 min-h-dvh">
       <header className="border-ink-100 sticky top-0 z-30 border-b bg-white">
-        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-4">
+        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-4 px-4">
           <div className="flex items-center gap-3">
             <button
               type="button"
@@ -79,7 +79,7 @@ export function AdminLayout() {
         </div>
       </header>
 
-      <div className="mx-auto flex max-w-6xl gap-6 px-4 py-6">
+      <div className="mx-auto flex max-w-7xl gap-6 px-4 py-6">
         <nav
           id="admin-nav"
           aria-label="Secciones del panel"

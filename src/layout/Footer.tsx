@@ -9,7 +9,7 @@ export function Footer() {
 
   return (
     <footer className="bg-ink-900 mt-20 text-white">
-      <div className="container-page grid gap-10 py-14 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="container-wide grid gap-10 py-14 sm:grid-cols-2 lg:grid-cols-4">
         <div>
           <p className="text-lg font-extrabold">{settings.businessName}</p>
           <p className="text-ink-200 mt-3 text-sm leading-relaxed">
@@ -68,7 +68,7 @@ export function Footer() {
       </div>
 
       <div className="border-ink-800 border-t">
-        <div className="container-page text-ink-300 flex flex-col gap-3 py-6 text-xs sm:flex-row sm:items-center sm:justify-between">
+        <div className="container-wide text-ink-300 flex flex-col gap-3 py-6 text-xs sm:flex-row sm:items-center sm:justify-between">
           <p>
             © {year} {settings.businessName}. Los precios del sitio son
             referenciales y se confirman por WhatsApp.

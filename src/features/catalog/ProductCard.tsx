@@ -40,10 +40,13 @@ export function ProductCard({
   eager = false,
   /** En carruseles estrechos, el botón Agregar sigue disponible. */
   compact = false,
+  /** En copias del carrusel se saca del tab, pero el clic sigue activo. */
+  interactive = true,
 }: {
   product: ProductCardData
   eager?: boolean
   compact?: boolean
+  interactive?: boolean
 }) {
   const { add } = useCart()
   const [added, setAdded] = useState(false)
@@ -70,7 +73,7 @@ export function ProductCard({
 
   return (
     <article
-      data-reveal
+      data-reveal={compact ? undefined : ''}
       className="card-hover-desktop border-ink-100 rounded-card group focus-within:ring-brand-600 relative flex flex-col overflow-hidden border bg-white will-change-transform focus-within:ring-2"
     >
       <div className="bg-ink-50 relative aspect-square overflow-hidden">
@@ -97,7 +100,11 @@ export function ProductCard({
 
         <h3 className="text-ink-900 text-sm font-semibold leading-snug">
           {/* El enlace cubre la tarjeta entera; el botón Agregar va encima (z-10). */}
-          <Link to={productPath(product)} className="after:absolute after:inset-0">
+          <Link
+            to={productPath(product)}
+            tabIndex={interactive ? undefined : -1}
+            className="after:absolute after:inset-0"
+          >
             {product.name}
           </Link>
         </h3>
@@ -121,6 +128,7 @@ export function ProductCard({
         {canQuickAdd ? (
           <button
             type="button"
+            tabIndex={interactive ? undefined : -1}
             onClick={handleQuickAdd}
             className={`relative z-10 mt-1 min-h-10 w-full rounded-lg text-sm font-bold transition-colors ${
               added

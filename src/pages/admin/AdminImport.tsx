@@ -16,25 +16,28 @@ import { useDocumentMeta } from '@/lib/useDocumentMeta'
 
 const EXAMPLE = `{
   "categories": [
-    { "id": "fijaciones", "name": "Fijaciones", "slug": "fijaciones" },
-    { "id": "tornillos", "name": "Tornillos", "parent_id": "fijaciones" }
+    { "id": "fijaciones", "nombre": "Fijaciones", "slug": "fijaciones" },
+    { "id": "tornillos", "nombre": "Tornillos", "parent_id": "fijaciones" }
   ],
   "products": [
     {
-      "origin_id": 1855,
-      "name": "Tornillo para madera",
-      "category_id": "tornillos",
+      "id_origen": 1855,
+      "nombre": "Tornillo para madera",
+      "categoria_id": "tornillos",
       "slug": "tornillo-para-madera",
       "meta_title": "Tornillo para madera 6x2 | Ferretería Lozada",
       "meta_description": "Tornillo para madera en varias medidas. Cotiza por WhatsApp en Chillogallo.",
       "search_tags": ["tornillo", "madera", "fijaciones"],
       "variants": [
         {
-          "origin_id": 185501,
-          "size": "6x2",
-          "sale_unit": "ciento",
-          "price": 1.25,
-          "availability": "disponible"
+          "id_origen": 185501,
+          "nombre": "Tornillo 6x2",
+          "medida": "6x2",
+          "color": null,
+          "presentacion": null,
+          "forma_venta": "ciento",
+          "precio": 1.25,
+          "codigo_barra": "001321"
         }
       ]
     }
@@ -134,7 +137,7 @@ export default function AdminImport() {
         <p className="text-ink-600 mt-1 max-w-2xl text-sm">
           Sube el JSON que genera el normalizador. Se actualizan categorías,
           productos y variantes por su código del sistema de facturación
-          (`origin_id`). No se borran productos que no vengan en el archivo.
+          (`id_origen`). No se borran productos que no vengan en el archivo.
         </p>
       </div>
 
@@ -264,8 +267,10 @@ export default function AdminImport() {
           <code className="text-ink-800">categories</code> y{' '}
           <code className="text-ink-800">products</code>. Las categorías usan
           un id temporal de texto; los productos y variantes se identifican por{' '}
-          <code className="text-ink-800">origin_id</code> (nunca por código de
-          barras).
+          <code className="text-ink-800">id_origen</code> (nunca por código de
+          barras). Campos en español: <code className="text-ink-800">nombre</code>,{' '}
+          <code className="text-ink-800">id_origen</code>,{' '}
+          <code className="text-ink-800">categoria_id</code>.
         </p>
       </AdminCard>
     </div>

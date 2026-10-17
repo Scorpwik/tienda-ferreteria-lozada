@@ -141,6 +141,12 @@
     @apply mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8;
   }
 
+  /* Catálogo y cabecera en PC: usan el ancho de la ventana, con el mismo
+     respiro lateral. Las tarjetas deciden cuántas caben. */
+  .container-wide {
+    @apply w-full px-4 sm:px-6 lg:px-8;
+  }
+
   /* Oculta visualmente pero sigue disponible para lectores de pantalla. */
   .sr-only-focusable:not(:focus):not(:focus-within) {
     @apply sr-only;

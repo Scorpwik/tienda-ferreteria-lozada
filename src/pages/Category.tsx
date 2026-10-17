@@ -43,7 +43,7 @@ export function CategoryPage() {
 
   if (resolved.error) {
     return (
-      <div className="container-page py-10">
+      <div className="container-wide py-10">
         <ErrorState error={resolved.error} onRetry={resolved.reload} />
       </div>
     )
@@ -51,7 +51,7 @@ export function CategoryPage() {
 
   if (resolved.loading) {
     return (
-      <div className="container-page py-10">
+      <div className="container-wide py-10">
         <Skeleton className="h-4 w-48" />
         <Skeleton className="mt-4 h-9 w-72" />
         <Skeleton className="mt-8 h-64 w-full" />
@@ -66,7 +66,7 @@ export function CategoryPage() {
   const tree = buildCategoryTree(categories)
 
   return (
-    <div className="container-page py-8">
+    <div className="container-wide py-8">
       <Breadcrumbs
         items={[
           { label: 'Inicio', to: '/' },
@@ -80,7 +80,7 @@ export function CategoryPage() {
         {current.name}
       </h1>
 
-      <div className="mt-8 lg:grid lg:grid-cols-[16rem_1fr] lg:gap-10">
+      <div className="mt-8 lg:grid lg:grid-cols-[16rem_minmax(0,1fr)] lg:gap-8">
         <aside className="mb-6 lg:mb-0">
           <CategoryNav tree={tree} activeSlug={current.slug} />
         </aside>

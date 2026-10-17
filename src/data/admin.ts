@@ -1,6 +1,7 @@
 import { supabase } from '@/lib/supabase'
 import { toVariant } from '@/lib/domain'
 import type { Availability, Variant } from '@/lib/domain'
+import type { AdminListVariant, AdminProductRow } from '@/lib/adminProductQuery'
 import {
   categoryFormSchema,
   parseOrThrow,
@@ -125,6 +126,20 @@ export async function updateCategory(
   assertAffected(data, 'guardar la categoría')
 }
 
+/** Reescribe sort_order de un grupo de hermanas (0, 1, 2…) según el orden visual. */
+export async function reorderCategories(orderedIds: string[]): Promise<void> {
+  if (orderedIds.length === 0) return
+
+  const results = await Promise.all(
+    orderedIds.map((id, index) =>
+      supabase.from('categories').update({ sort_order: index }).eq('id', id).select('id'),
+    ),
+  )
+
+  const failed = results.find((result) => result.error)
+  if (failed?.error) throw new Error(readableDbError(failed.error))
+}
+
 /**
  * El FK de products.category_id no tiene ON DELETE CASCADE, asi que se avisa
  * antes: borrar una categoria con productos dejaria el catalogo sin clasificar.
@@ -181,119 +196,100 @@ export async function deleteCategory(id: string): Promise<void> {
 
 /* ---------- Productos ---------- */
 
-export type AdminProductRow = {
+export type { AdminProductRow, AdminListVariant } from '@/lib/adminProductQuery'
+
+const ADMIN_LIST_SELECT = `
+  id, origin_id, name, category_id, is_offer, is_bestseller, updated_at,
+  category:categories!products_category_id_fkey ( name ),
+  product_variants ( id, origin_id, size, color, presentation, sale_unit, price, barcode, availability )
+` as const
+
+type AdminListRow = {
   id: string
   origin_id: number | null
   name: string
-  categoryName: string | null
-  isOffer: boolean
-  isBestseller: boolean
-  variantCount: number
-  updatedAt: string
-}
-
-const ADMIN_LIST_SELECT = `
-  id, origin_id, name, is_offer, is_bestseller, updated_at,
-  category:categories!products_category_id_fkey ( name ),
-  product_variants ( id )
-` as const
-
-export type AdminProductQuery = {
-  search?: string
-  /** Una categoria concreta. */
-  categoryId?: string | null
-  /**
-   * Varias categorias (padre + hijas). Si viene, tiene prioridad sobre
-   * categoryId: al filtrar por "Fijaciones" deben salir tambien los productos
-   * de "Tornillos", "Tuercas", etc.
-   */
-  categoryIds?: string[] | null
-  onlyOffers?: boolean
-  onlyBestsellers?: boolean
-  /** Productos con al menos una variante agotada o sin precio. */
-  variantIssue?: 'agotado' | 'sin-precio' | null
-  page?: number
-  pageSize?: number
-}
-
-export const ADMIN_PAGE_SIZE = 25
-
-export async function fetchAdminProducts(query: AdminProductQuery): Promise<{
-  items: AdminProductRow[]
-  total: number
-  totalPages: number
-}> {
-  const pageSize = query.pageSize ?? ADMIN_PAGE_SIZE
-  const page = Math.max(1, query.page ?? 1)
-  const from = (page - 1) * pageSize
-
-  const innerVariants =
-    query.variantIssue === 'agotado' || query.variantIssue === 'sin-precio'
-
-  const select = innerVariants
-    ? ADMIN_LIST_SELECT.replace(
-        'product_variants ( id )',
-        'product_variants!inner ( id )',
-      )
-    : ADMIN_LIST_SELECT
-
-  let request = supabase.from('products').select(select, { count: 'exact' })
-
-  const search = query.search?.trim()
-  if (search) {
-    const numeric = Number(search)
-    request = Number.isInteger(numeric)
-      ? request.or(`name.ilike.%${search}%,origin_id.eq.${numeric}`)
-      : request.ilike('name', `%${search}%`)
-  }
-  if (query.categoryIds && query.categoryIds.length > 0) {
-    request = request.in('category_id', query.categoryIds)
-  } else if (query.categoryId) {
-    request = request.eq('category_id', query.categoryId)
-  }
-  if (query.onlyOffers) request = request.eq('is_offer', true)
-  if (query.onlyBestsellers) request = request.eq('is_bestseller', true)
-  if (query.variantIssue === 'agotado') {
-    request = request.eq('product_variants.availability', 'agotado')
-  } else if (query.variantIssue === 'sin-precio') {
-    request = request.or('price.is.null,price.eq.0', {
-      referencedTable: 'product_variants',
-    })
-  }
-
-  const { data, error, count } = await request
-    .order('updated_at', { ascending: false })
-    .range(from, from + pageSize - 1)
-
-  if (error) throw error
-
-  type Row = {
+  category_id: string | null
+  is_offer: boolean
+  is_bestseller: boolean
+  updated_at: string
+  category: { name: string } | null
+  product_variants: {
     id: string
     origin_id: number | null
-    name: string
-    is_offer: boolean
-    is_bestseller: boolean
-    updated_at: string
-    category: { name: string } | null
-    product_variants: { id: string }[]
-  }
+    size: string | null
+    color: string | null
+    presentation: string | null
+    sale_unit: string | null
+    price: number | null
+    barcode: string | null
+    availability: string
+  }[]
+}
 
-  const total = count ?? 0
-
+function toAdminListVariant(
+  row: AdminListRow['product_variants'][number],
+): AdminListVariant {
+  const availability = row.availability
   return {
-    items: (data as unknown as Row[]).map((row) => ({
-      id: row.id,
-      origin_id: row.origin_id,
-      name: row.name,
-      categoryName: row.category?.name ?? null,
-      isOffer: row.is_offer,
-      isBestseller: row.is_bestseller,
-      variantCount: row.product_variants.length,
-      updatedAt: row.updated_at,
-    })),
-    total,
-    totalPages: Math.max(1, Math.ceil(total / pageSize)),
+    id: row.id,
+    origin_id: row.origin_id,
+    size: row.size,
+    color: row.color,
+    presentation: row.presentation,
+    sale_unit: row.sale_unit,
+    price: Number(row.price ?? 0),
+    barcode: row.barcode,
+    availability:
+      availability === 'disponible' ||
+      availability === 'agotado' ||
+      availability === 'consultar'
+        ? availability
+        : 'consultar',
   }
+}
+
+function toAdminProductRow(row: AdminListRow): AdminProductRow {
+  return {
+    id: row.id,
+    origin_id: row.origin_id,
+    name: row.name,
+    categoryId: row.category_id,
+    categoryName: row.category?.name ?? null,
+    isOffer: row.is_offer,
+    isBestseller: row.is_bestseller,
+    updatedAt: row.updated_at,
+    variants: row.product_variants.map(toAdminListVariant),
+  }
+}
+
+export const ADMIN_PAGE_SIZE = 40
+const ADMIN_FETCH_PAGE = 1000
+
+/**
+ * Todo el catalogo para el panel. ~1.200 productos caben en memoria y asi
+ * filtrar, ordenar y cambiar un precio no vuelve a pedir la pagina al servidor.
+ */
+export async function fetchAdminCatalog(): Promise<AdminProductRow[]> {
+  const items: AdminProductRow[] = []
+  let from = 0
+
+  while (true) {
+    const { data, error } = await supabase
+      .from('products')
+      .select(ADMIN_LIST_SELECT)
+      .order('id')
+      .order('created_at', { referencedTable: 'product_variants' })
+      .range(from, from + ADMIN_FETCH_PAGE - 1)
+
+    if (error) throw error
+
+    const rows = (data as unknown as AdminListRow[]) ?? []
+    items.push(...rows.map(toAdminProductRow))
+    if (rows.length < ADMIN_FETCH_PAGE) break
+    from += ADMIN_FETCH_PAGE
+  }
+
+  return items
 }
 
 export type ProductFormValues = {

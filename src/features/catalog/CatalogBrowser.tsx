@@ -225,7 +225,7 @@ export function CatalogBrowser({
           title="No encontramos ese producto"
           description={
             search
-              ? 'Prueba con menos palabras, con la medida sola o con el código. Si no aparece, escríbenos y lo buscamos por ti.'
+              ? 'Prueba combinando nombre, medida o color (amoladora 9 pulgadas, spray blanco) o el código. Si no aparece, escríbenos y lo buscamos por ti.'
               : 'Todavía no hay productos publicados en esta sección.'
           }
           action={

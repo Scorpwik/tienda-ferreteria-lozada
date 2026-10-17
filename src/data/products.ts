@@ -6,6 +6,12 @@ import {
   priceRange,
   toVariant,
 } from '@/lib/domain'
+import {
+  buildProductSearchDoc,
+  rankSearchHit,
+  searchAllTokensMatch,
+  searchTokens,
+} from '@/lib/productSearch'
 import type {
   Availability,
   Paginated,
@@ -35,6 +41,8 @@ type CardRow = {
   id: string
   origin_id: number | null
   name: string
+  description?: string | null
+  search_tags?: string[] | null
   is_offer: boolean
   is_bestseller: boolean
   category: { id: string; name: string; slug: string } | null
@@ -46,6 +54,8 @@ type CardRow = {
     color: string | null
     presentation: string | null
     sale_unit: string | null
+    barcode?: string | null
+    origin_id?: number | null
   }[]
   product_images: {
     id: string
@@ -55,6 +65,18 @@ type CardRow = {
     variant_id: string | null
   }[]
 }
+
+const SEARCH_SELECT = `
+  id,
+  origin_id,
+  name,
+  description,
+  search_tags,
+  is_offer,
+  is_bestseller,
+  category:categories!products_category_id_fkey ( id, name, slug ),
+  product_variants ( id, price, availability, size, color, presentation, sale_unit, barcode, origin_id )
+` as const
 
 function variantCardLabel(variant: CardRow['product_variants'][number]): string {
   const parts = [variant.size, variant.color, variant.presentation].filter(
@@ -148,9 +170,233 @@ export async function fetchCatalogPriceCeiling(): Promise<number> {
   return Number.isFinite(max) && max > 0 ? Math.ceil(max) : 100
 }
 
+function escapeIlike(token: string): string {
+  return token.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_')
+}
+
+function intersectIds(sets: Set<string>[]): Set<string> {
+  if (sets.length === 0) return new Set()
+  const [first, ...rest] = sets
+  const result = new Set<string>()
+  for (const id of first) {
+    if (rest.every((set) => set.has(id))) result.add(id)
+  }
+  return result
+}
+
 /**
- * Catalogo paginado. La seleccion de ids ocurre en la funcion indexada
- * search_product_ids y aqui solo se hidratan los 24 de la pagina actual.
+ * Cada token puede caer en nombre, tags, categoria, medida, color, etc.
+ * Se piden candidatos por token y luego se exige que todos coincidan.
+ */
+async function fetchIdsForToken(token: string): Promise<Set<string>> {
+  const pattern = `%${escapeIlike(token)}%`
+  const numeric = /^[0-9./-]+$/.test(token) || token.length <= 2
+  const ids = new Set<string>()
+
+  if (numeric) {
+    const variantFilters = [`size.ilike.${pattern}`, `barcode.ilike.${pattern}`]
+    if (/^\d{1,18}$/.test(token)) variantFilters.push(`origin_id.eq.${token}`)
+
+    const variants = await supabase
+      .from('product_variants')
+      .select('product_id, size, barcode, origin_id')
+      .or(variantFilters.join(','))
+      .limit(1000)
+
+    if (variants.error) throw variants.error
+    for (const row of variants.data ?? []) {
+      const doc = buildProductSearchDoc({
+        name: '',
+        variants: [
+          {
+            size: row.size,
+            barcode: row.barcode,
+            originId: row.origin_id,
+          },
+        ],
+      })
+      if (searchAllTokensMatch(doc, [token])) ids.add(row.product_id)
+    }
+
+    if (/^\d{1,18}$/.test(token)) {
+      const products = await supabase
+        .from('products')
+        .select('id')
+        .eq('origin_id', Number(token))
+        .limit(20)
+      if (products.error) throw products.error
+      for (const row of products.data ?? []) ids.add(row.id)
+    }
+
+    return ids
+  }
+
+  const productFilters = [
+    `name.ilike.${pattern}`,
+    `description.ilike.${pattern}`,
+  ]
+  if (/^[a-z0-9]+$/.test(token)) {
+    productFilters.push(`search_tags.cs.{${token}}`)
+  }
+
+  const variantFilters = [
+    `size.ilike.${pattern}`,
+    `color.ilike.${pattern}`,
+    `presentation.ilike.${pattern}`,
+    `sale_unit.ilike.${pattern}`,
+    `barcode.ilike.${pattern}`,
+  ]
+
+  const [products, variants] = await Promise.all([
+    supabase.from('products').select('id').or(productFilters.join(',')).limit(1000),
+    supabase
+      .from('product_variants')
+      .select('product_id')
+      .or(variantFilters.join(','))
+      .limit(1000),
+  ])
+
+  if (products.error) throw products.error
+  if (variants.error) throw variants.error
+
+  for (const row of products.data ?? []) ids.add(row.id)
+  for (const row of variants.data ?? []) ids.add(row.product_id)
+  return ids
+}
+
+function rowMatchesFilters(
+  row: CardRow,
+  query: CatalogQuery,
+  tokens: string[],
+): boolean {
+  if (query.onlyOffers && !row.is_offer) return false
+  if (query.onlyBestsellers && !row.is_bestseller) return false
+  if (query.categoryIds?.length && !row.category?.id) return false
+  if (
+    query.categoryIds?.length &&
+    row.category &&
+    !query.categoryIds.includes(row.category.id)
+  ) {
+    return false
+  }
+
+  const doc = buildProductSearchDoc({
+    name: row.name,
+    description: row.description,
+    searchTags: row.search_tags,
+    originId: row.origin_id,
+    categoryName: row.category?.name,
+    variants: row.product_variants.map((variant) => ({
+      size: variant.size,
+      color: variant.color,
+      presentation: variant.presentation,
+      saleUnit: variant.sale_unit,
+      barcode: variant.barcode,
+      originId: variant.origin_id ?? null,
+    })),
+  })
+  if (!searchAllTokensMatch(doc, tokens)) return false
+
+  if (query.availability) {
+    const hasAvailability = row.product_variants.some(
+      (variant) => normalizeAvailability(variant.availability) === query.availability,
+    )
+    if (!hasAvailability) return false
+  }
+
+  const priceMin = query.priceMin
+  const priceMax = query.priceMax
+  if (priceMin != null || priceMax != null) {
+    const inRange = row.product_variants.some((variant) => {
+      if (normalizeAvailability(variant.availability) === 'consultar') return false
+      const price = Number(variant.price ?? 0)
+      if (price <= 0) return false
+      if (priceMin != null && price < priceMin) return false
+      if (priceMax != null && price > priceMax) return false
+      return true
+    })
+    if (!inRange) return false
+  }
+
+  return true
+}
+
+async function fetchSmartCatalogPage(
+  query: CatalogQuery,
+  tokens: string[],
+  page: number,
+  pageSize: number,
+): Promise<Paginated<ProductCard>> {
+  const tokenSets = await Promise.all(tokens.map((token) => fetchIdsForToken(token)))
+  let ids = [...intersectIds(tokenSets)]
+
+  if (ids.length === 0) {
+    return { items: [], total: 0, page, pageSize, totalPages: 0 }
+  }
+
+  if (query.categoryIds?.length) {
+    const { data, error } = await supabase
+      .from('products')
+      .select('id')
+      .in('id', ids)
+      .in('category_id', query.categoryIds)
+    if (error) throw error
+    ids = (data ?? []).map((row) => row.id)
+    if (ids.length === 0) {
+      return { items: [], total: 0, page, pageSize, totalPages: 0 }
+    }
+  }
+
+  const { data, error } = await supabase
+    .from('products')
+    .select(SEARCH_SELECT)
+    .in('id', ids)
+
+  if (error) throw error
+
+  const matched = (data as unknown as CardRow[])
+    .filter((row) => rowMatchesFilters(row, query, tokens))
+    .sort((left, right) => {
+      const rank = rankSearchHit(left.name, tokens) - rankSearchHit(right.name, tokens)
+      if (rank !== 0) return rank
+      if (left.is_bestseller !== right.is_bestseller) {
+        return Number(right.is_bestseller) - Number(left.is_bestseller)
+      }
+      return left.name.localeCompare(right.name, 'es')
+    })
+
+  const total = matched.length
+  const offset = (page - 1) * pageSize
+  const pageRows = matched.slice(offset, offset + pageSize)
+  if (pageRows.length === 0) {
+    return { items: [], total, page, pageSize, totalPages: 0 }
+  }
+
+  const { data: cards, error: cardError } = await supabase
+    .from('products')
+    .select(CARD_SELECT)
+    .in('id', pageRows.map((row) => row.id))
+
+  if (cardError) throw cardError
+
+  const byId = new Map((cards as unknown as CardRow[]).map((row) => [row.id, row]))
+  const items = pageRows
+    .map((row) => byId.get(row.id))
+    .filter((row): row is CardRow => Boolean(row))
+    .map(toCard)
+
+  return {
+    items,
+    total,
+    page,
+    pageSize,
+    totalPages: Math.max(1, Math.ceil(total / pageSize)),
+  }
+}
+
+/**
+ * Catalogo paginado. Sin texto usa search_product_ids; con texto combina
+ * nombre, medida, color y el resto de campos palabra por palabra.
  */
 export async function fetchCatalogPage(
   query: CatalogQuery,
@@ -158,11 +404,16 @@ export async function fetchCatalogPage(
   const pageSize = query.pageSize ?? PAGE_SIZE
   const page = Math.max(1, query.page ?? 1)
   const offset = (page - 1) * pageSize
+  const tokens = query.search?.trim() ? searchTokens(query.search) : []
+
+  if (tokens.length > 0) {
+    return fetchSmartCatalogPage(query, tokens, page, pageSize)
+  }
 
   const { data: matches, error: matchError } = await supabase.rpc(
     'search_product_ids',
     {
-      p_query: query.search?.trim() ? query.search.trim() : undefined,
+      p_query: undefined,
       p_category_ids: query.categoryIds?.length ? query.categoryIds : undefined,
       p_availability: query.availability ?? undefined,
       p_only_offers: query.onlyOffers ?? false,

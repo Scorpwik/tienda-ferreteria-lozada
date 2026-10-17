@@ -13,6 +13,7 @@ import {
   countCategoryUsage,
   createCategory,
   deleteCategory,
+  reorderCategories,
   updateCategory,
 } from '@/data/admin'
 import type { CategoryFormValues } from '@/data/admin'
@@ -41,6 +42,7 @@ export default function AdminCategories() {
   const [slugTouched, setSlugTouched] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [reordering, setReordering] = useState(false)
 
   const tree = useMemo(() => buildCategoryTree(data ?? []), [data])
 
@@ -124,6 +126,23 @@ export default function AdminCategories() {
     }
   }
 
+  const persistOrder = async (orderedIds: string[]) => {
+    setFormError(null)
+    setReordering(true)
+    try {
+      await reorderCategories(orderedIds)
+      toast.success('Se actualizó el orden del catálogo.')
+      reload()
+    } catch (cause) {
+      const message =
+        cause instanceof Error ? cause.message : 'No se pudo reordenar.'
+      setFormError(message)
+      toast.error(message)
+    } finally {
+      setReordering(false)
+    }
+  }
+
   const remove = async (category: Category) => {
     setFormError(null)
 
@@ -179,7 +198,7 @@ export default function AdminCategories() {
       <div className="grid gap-6 lg:grid-cols-[1fr_22rem]">
         <AdminCard
           title="Árbol del catálogo"
-          description="Así lo ve el cliente. Las sangrías son subcategorías."
+          description="Las categorías salen cerradas. Ábrelas con la flecha, y cámbiales el orden con ↑ ↓ o arrastrando."
         >
           {loading ? (
             <div className="space-y-2">
@@ -197,6 +216,8 @@ export default function AdminCategories() {
               nodes={tree}
               onEdit={setEditing}
               onDelete={(category) => void remove(category)}
+              onReorder={(orderedIds) => void persistOrder(orderedIds)}
+              reordering={reordering}
               editingId={editing?.id ?? null}
               highlightId={highlightId}
             />
@@ -312,76 +333,246 @@ export default function AdminCategories() {
   )
 }
 
+function nodeContainsId(node: CategoryNode, id: string): boolean {
+  if (node.id === id) return true
+  return node.children.some((child) => nodeContainsId(child, id))
+}
+
+function Chevron({ open }: { open: boolean }) {
+  return (
+    <svg
+      viewBox="0 0 20 20"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={`size-4 shrink-0 transition-transform duration-150 ${open ? 'rotate-90' : ''}`}
+      aria-hidden="true"
+    >
+      <path d="M7 4.5 13 10 7 15.5" />
+    </svg>
+  )
+}
+
+function GripIcon() {
+  return (
+    <svg
+      viewBox="0 0 20 20"
+      fill="currentColor"
+      className="size-4"
+      aria-hidden="true"
+    >
+      <circle cx="7" cy="5" r="1.2" />
+      <circle cx="13" cy="5" r="1.2" />
+      <circle cx="7" cy="10" r="1.2" />
+      <circle cx="13" cy="10" r="1.2" />
+      <circle cx="7" cy="15" r="1.2" />
+      <circle cx="13" cy="15" r="1.2" />
+    </svg>
+  )
+}
+
+function moveId(ids: string[], id: string, direction: -1 | 1): string[] | null {
+  const index = ids.indexOf(id)
+  const nextIndex = index + direction
+  if (index < 0 || nextIndex < 0 || nextIndex >= ids.length) return null
+  const next = [...ids]
+  const [item] = next.splice(index, 1)
+  next.splice(nextIndex, 0, item)
+  return next
+}
+
 function CategoryTree({
   nodes,
   onEdit,
   onDelete,
+  onReorder,
+  reordering,
   editingId,
   highlightId,
-  depth = 0,
 }: {
   nodes: CategoryNode[]
   onEdit: (category: Category) => void
   onDelete: (category: Category) => void
+  onReorder: (orderedIds: string[]) => void
+  reordering: boolean
   editingId: string | null
   highlightId: string | null
-  depth?: number
 }) {
-  return (
-    <ul className={depth === 0 ? 'divide-ink-100 divide-y' : ''}>
-      {nodes.map((node) => (
-        <li key={node.id}>
-          <div
-            id={`categoria-${node.id}`}
-            className={`flex items-center gap-3 py-2.5 ${
-              editingId === node.id || highlightId === node.id
-                ? 'bg-brand-50 -mx-2 rounded-lg px-2'
-                : ''
-            }`}
-            style={{ paddingLeft: depth * 18 }}
-          >
-            <div className="min-w-0 flex-1">
-              <p className="text-ink-900 truncate text-sm font-semibold">
-                {node.name}
-                {depth === 0 && node.children.length > 0 ? (
-                  <span className="text-ink-500 ml-2 text-xs font-medium">
-                    ({node.children.length}{' '}
-                    {node.children.length === 1 ? 'subcategoría' : 'subcategorías'})
-                  </span>
-                ) : null}
-              </p>
-              <p className="text-ink-500 truncate text-xs">
-                /{node.slug} · orden {node.sort_order}
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => onEdit(node)}
-              className="text-brand-700 shrink-0 text-sm font-semibold underline"
-            >
-              Editar
-            </button>
-            <button
-              type="button"
-              onClick={() => onDelete(node)}
-              className="shrink-0 text-sm font-semibold text-red-700 underline"
-            >
-              Borrar
-            </button>
-          </div>
+  const [openIds, setOpenIds] = useState<Set<string>>(() => new Set())
+  const [draggingId, setDraggingId] = useState<string | null>(null)
 
-          {node.children.length > 0 ? (
-            <CategoryTree
-              nodes={node.children}
-              onEdit={onEdit}
-              onDelete={onDelete}
-              editingId={editingId}
-              highlightId={highlightId}
-              depth={depth + 1}
-            />
-          ) : null}
-        </li>
-      ))}
-    </ul>
-  )
+  useEffect(() => {
+    const targets = [editingId, highlightId].filter(
+      (id): id is string => Boolean(id),
+    )
+    if (targets.length === 0) return
+
+    setOpenIds((prev) => {
+      const next = new Set(prev)
+      const visit = (list: CategoryNode[]) => {
+        for (const node of list) {
+          if (targets.some((id) => node.children.some((child) => nodeContainsId(child, id)))) {
+            next.add(node.id)
+          }
+          visit(node.children)
+        }
+      }
+      visit(nodes)
+      return next
+    })
+  }, [editingId, highlightId, nodes])
+
+  const toggle = (id: string) => {
+    setOpenIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const renderLevel = (list: CategoryNode[], depth: number) => {
+    const siblingIds = list.map((node) => node.id)
+
+    return (
+      <ul className={depth === 0 ? 'divide-ink-100 divide-y' : ''}>
+        {list.map((node, index) => {
+          const hasChildren = node.children.length > 0
+          const open = hasChildren && openIds.has(node.id)
+          const panelId = `admin-cat-children-${node.id}`
+          const highlighted = editingId === node.id || highlightId === node.id
+
+          return (
+            <li
+              key={node.id}
+              onDragOver={(event) => {
+                if (!draggingId || draggingId === node.id) return
+                if (!siblingIds.includes(draggingId)) return
+                event.preventDefault()
+                event.stopPropagation()
+                event.dataTransfer.dropEffect = 'move'
+              }}
+              onDrop={(event) => {
+                event.preventDefault()
+                event.stopPropagation()
+                const fromId = event.dataTransfer.getData('text/plain')
+                setDraggingId(null)
+                if (!fromId || fromId === node.id) return
+                if (!siblingIds.includes(fromId)) return
+                const from = siblingIds.indexOf(fromId)
+                const to = siblingIds.indexOf(node.id)
+                if (from < 0 || to < 0) return
+                const next = [...siblingIds]
+                next.splice(from, 1)
+                next.splice(to, 0, fromId)
+                onReorder(next)
+              }}
+            >
+              <div
+                id={`categoria-${node.id}`}
+                draggable={!reordering}
+                onDragStart={(event) => {
+                  event.dataTransfer.effectAllowed = 'move'
+                  event.dataTransfer.setData('text/plain', node.id)
+                  setDraggingId(node.id)
+                }}
+                onDragEnd={() => setDraggingId(null)}
+                className={`flex items-center gap-1.5 py-2.5 ${
+                  highlighted ? 'bg-brand-50 -mx-2 rounded-lg px-2' : ''
+                } ${draggingId === node.id ? 'opacity-50' : ''}`}
+                style={{ paddingLeft: depth * 18 }}
+              >
+                <span
+                  className="text-ink-400 hover:text-ink-600 grid size-8 shrink-0 cursor-grab place-items-center active:cursor-grabbing"
+                  title="Arrastra para reordenar"
+                  aria-hidden="true"
+                >
+                  <GripIcon />
+                </span>
+
+                {hasChildren ? (
+                  <button
+                    type="button"
+                    className="text-ink-500 hover:bg-ink-50 hover:text-ink-800 grid size-8 shrink-0 place-items-center rounded-lg"
+                    aria-expanded={open}
+                    aria-controls={panelId}
+                    aria-label={
+                      open
+                        ? `Ocultar subcategorías de ${node.name}`
+                        : `Ver subcategorías de ${node.name}`
+                    }
+                    onClick={() => toggle(node.id)}
+                  >
+                    <Chevron open={open} />
+                  </button>
+                ) : (
+                  <span className="size-8 shrink-0" aria-hidden="true" />
+                )}
+
+                <div className="min-w-0 flex-1">
+                  <p className="text-ink-900 truncate text-sm font-semibold">
+                    {node.name}
+                    {depth === 0 && hasChildren ? (
+                      <span className="text-ink-500 ml-2 text-xs font-medium">
+                        ({node.children.length}{' '}
+                        {node.children.length === 1 ? 'subcategoría' : 'subcategorías'})
+                      </span>
+                    ) : null}
+                  </p>
+                  <p className="text-ink-500 truncate text-xs">/{node.slug}</p>
+                </div>
+
+                <button
+                  type="button"
+                  disabled={reordering || index === 0}
+                  onClick={() => {
+                    const next = moveId(siblingIds, node.id, -1)
+                    if (next) onReorder(next)
+                  }}
+                  className="text-ink-600 hover:bg-ink-50 disabled:text-ink-300 grid size-8 shrink-0 place-items-center rounded-lg disabled:cursor-not-allowed"
+                  aria-label={`Subir ${node.name}`}
+                >
+                  ↑
+                </button>
+                <button
+                  type="button"
+                  disabled={reordering || index === list.length - 1}
+                  onClick={() => {
+                    const next = moveId(siblingIds, node.id, 1)
+                    if (next) onReorder(next)
+                  }}
+                  className="text-ink-600 hover:bg-ink-50 disabled:text-ink-300 grid size-8 shrink-0 place-items-center rounded-lg disabled:cursor-not-allowed"
+                  aria-label={`Bajar ${node.name}`}
+                >
+                  ↓
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onEdit(node)}
+                  className="text-brand-700 shrink-0 text-sm font-semibold underline"
+                >
+                  Editar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onDelete(node)}
+                  className="shrink-0 text-sm font-semibold text-red-700 underline"
+                >
+                  Borrar
+                </button>
+              </div>
+
+              {hasChildren && open ? (
+                <div id={panelId}>{renderLevel(node.children, depth + 1)}</div>
+              ) : null}
+            </li>
+          )
+        })}
+      </ul>
+    )
+  }
+
+  return renderLevel(nodes, 0)
 }

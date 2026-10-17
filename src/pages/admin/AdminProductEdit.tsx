@@ -343,6 +343,14 @@ function AdminProductEdit() {
       {notice ? <FormSuccess>{notice}</FormSuccess> : null}
       {actionError ? <FormError>{actionError}</FormError> : null}
 
+      {productId && product.data ? (
+        <VariantEditor
+          productId={productId}
+          variants={product.data.variants}
+          onChanged={product.reload}
+        />
+      ) : null}
+
       <ProductForm
         key={productId ?? 'nuevo'}
         initial={product.data ? fromProduct(product.data) : emptyForm}
@@ -364,19 +372,12 @@ function AdminProductEdit() {
       />
 
       {productId && product.data ? (
-        <>
-          <VariantEditor
-            productId={productId}
-            variants={product.data.variants}
-            onChanged={product.reload}
-          />
-          <ImageManager
-            productId={productId}
-            images={product.data.images}
-            variants={product.data.variants}
-            onChanged={product.reload}
-          />
-        </>
+        <ImageManager
+          productId={productId}
+          images={product.data.images}
+          variants={product.data.variants}
+          onChanged={product.reload}
+        />
       ) : (
         <AdminCard>
           <p className="text-ink-600 text-sm">

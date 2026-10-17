@@ -3,6 +3,8 @@ import { slugify } from '@/lib/format'
 import { cleanSingleLine } from '@/lib/sanitize'
 import {
   catalogImportSchema,
+  normalizeImportedCatalog,
+  resolveImportAvailability,
   type CatalogImport,
   type ImportProduct,
   type ImportVariant,
@@ -12,7 +14,9 @@ import { readableDbError } from '@/data/admin'
 /**
  * Importacion del JSON del normalizador (Streamlit).
  * Orden fijo por FKs: categorias → productos → variantes.
- * Llaves: categories.slug, products.origin_id, product_variants.origin_id.
+ * JSON en español (`nombre`, `id_origen`, `categoria_id`) → columnas Supabase
+ * en inglés (`name`, `origin_id`, `category_id`).
+ * Llaves de upsert: categories.slug, products.origin_id, product_variants.origin_id.
  * Nunca se usa barcode como llave (puede repetirse en el Excel).
  */
 
@@ -109,14 +113,13 @@ export function parseCatalogImport(raw: string): CatalogImport {
     )
   }
 
-  if (
-    result.data.categories.length === 0 &&
-    result.data.products.length === 0
-  ) {
+  const catalog = normalizeImportedCatalog(result.data)
+
+  if (catalog.categories.length === 0 && catalog.products.length === 0) {
     throw new ImportError('El JSON no trae categorías ni productos.')
   }
 
-  return result.data
+  return catalog
 }
 
 async function upsertCategories(
@@ -159,7 +162,7 @@ async function upsertCategories(
     } else if (row.parent_id && !byImportId.has(row.parent_id)) {
       pushWarning(
         warnings,
-        `Categoría "${row.name}" tiene una categoría madre desconocida; se importó sin madre.`,
+        `Categoría "${row.nombre}" tiene una categoría madre desconocida; se importó sin madre.`,
       )
       row.parent_id = null
     }
@@ -177,14 +180,14 @@ async function upsertCategories(
     const preferredSlug =
       row.slug && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(row.slug)
         ? row.slug
-        : slugify(row.name)
+        : slugify(row.nombre)
     const existingBySlug = bySlug.get(preferredSlug)
     // Si el slug ya existe, reutilizamos esa fila; si no, buscamos uno libre.
     const slug = existingBySlug ? preferredSlug : uniqueSlug(preferredSlug, usedSlugs)
 
     const parentUuid = row.parent_id ? (idMap.get(row.parent_id) ?? null) : null
     const payload = {
-      name: row.name,
+      name: row.nombre,
       slug,
       parent_id: parentUuid,
       sort_order: row.sort_order ?? 0,
@@ -211,7 +214,7 @@ async function upsertCategories(
       bySlug.set(slug, {
         id: data.id,
         slug,
-        name: row.name,
+        name: row.nombre,
         parent_id: parentUuid,
         sort_order: payload.sort_order,
       })
@@ -258,6 +261,14 @@ async function loadVariantsByOrigin(
   return map
 }
 
+/**
+ * JSON del normalizador (español) → fila de `product_variants` (inglés).
+ * Ejemplo de salida:
+ * {
+ *   product_id, origin_id, size, color, presentation,
+ *   sale_unit, price, barcode, availability
+ * }
+ */
 function variantPayload(
   productId: string,
   variant: ImportVariant,
@@ -272,16 +283,22 @@ function variantPayload(
   barcode: string | null
   availability: 'disponible' | 'agotado' | 'consultar'
 } {
+  const price = variant.precio ?? 0
+  const availability = resolveImportAvailability(
+    variant.precio,
+    variant.availability,
+  )
+
   return {
     product_id: productId,
-    origin_id: variant.origin_id ?? null,
-    size: emptyText(variant.size),
+    origin_id: variant.id_origen ?? null,
+    size: emptyText(variant.medida),
     color: emptyText(variant.color),
-    presentation: emptyText(variant.presentation),
-    sale_unit: emptyText(variant.sale_unit),
-    price: variant.price ?? 0,
-    barcode: emptyText(variant.barcode),
-    availability: variant.availability ?? 'consultar',
+    presentation: emptyText(variant.presentacion),
+    sale_unit: emptyText(variant.forma_venta),
+    price,
+    barcode: emptyText(variant.codigo_barra),
+    availability,
   }
 }
 
@@ -294,7 +311,7 @@ async function upsertProducts(
   created: number
   updated: number
 }> {
-  const originIds = products.map((product) => product.origin_id)
+  const originIds = products.map((product) => product.id_origen)
   const existing = await loadProductsByOrigin(originIds)
   let created = 0
   let updated = 0
@@ -316,28 +333,29 @@ async function upsertProducts(
 
   for (const product of products) {
     let categoryUuid: string | null = null
-    if (product.category_id) {
-      categoryUuid = categoryIdMap.get(product.category_id) ?? null
+    if (product.categoria_id) {
+      categoryUuid = categoryIdMap.get(product.categoria_id) ?? null
       if (!categoryUuid) {
         // Puede ser un UUID real ya existente en la base.
         if (
           /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-            product.category_id,
+            product.categoria_id,
           )
         ) {
-          categoryUuid = product.category_id
+          categoryUuid = product.categoria_id
         } else {
           pushWarning(
             warnings,
-            `Producto ${product.origin_id} ("${product.name}"): categoría "${product.category_id}" no encontrada; quedó sin categoría.`,
+            `Producto ${product.id_origen} ("${product.nombre}"): categoría "${product.categoria_id}" no encontrada; quedó sin categoría.`,
           )
         }
       }
     }
 
+    // JSON (español) → columnas Supabase (inglés).
     const payload: ProductPayload = {
-      origin_id: product.origin_id,
-      name: product.name,
+      origin_id: product.id_origen,
+      name: product.nombre,
       description: product.description,
       category_id: categoryUuid,
     }
@@ -351,7 +369,7 @@ async function upsertProducts(
       payload.search_tags = product.search_tags
     }
 
-    const existingId = existing.get(product.origin_id)
+    const existingId = existing.get(product.id_origen)
     if (existingId) {
       toUpdate.push({ id: existingId, ...payload })
     } else {
@@ -404,11 +422,11 @@ async function upsertVariants(
   const withoutOrigin: Pending[] = []
 
   for (const product of products) {
-    const productId = productIdByOrigin.get(product.origin_id)
+    const productId = productIdByOrigin.get(product.id_origen)
     if (!productId) {
       pushWarning(
         warnings,
-        `No se pudieron importar las variantes de ${product.origin_id}: el producto no quedó guardado.`,
+        `No se pudieron importar las variantes de ${product.id_origen}: el producto no quedó guardado.`,
       )
       continue
     }
@@ -416,15 +434,15 @@ async function upsertVariants(
       const pending = {
         productId,
         variant,
-        productOrigin: product.origin_id,
+        productOrigin: product.id_origen,
       }
-      if (variant.origin_id) withOrigin.push(pending)
+      if (variant.id_origen) withOrigin.push(pending)
       else withoutOrigin.push(pending)
     }
   }
 
   const originIds = withOrigin
-    .map((item) => item.variant.origin_id)
+    .map((item) => item.variant.id_origen)
     .filter((id): id is number => id != null)
   const existing = await loadVariantsByOrigin(originIds)
 
@@ -432,13 +450,13 @@ async function upsertVariants(
   let updated = 0
 
   const toInsert = withOrigin
-    .filter((item) => !existing.has(item.variant.origin_id as number))
+    .filter((item) => !existing.has(item.variant.id_origen as number))
     .map((item) => variantPayload(item.productId, item.variant))
 
   const toUpdate = withOrigin
-    .filter((item) => existing.has(item.variant.origin_id as number))
+    .filter((item) => existing.has(item.variant.id_origen as number))
     .map((item) => ({
-      id: existing.get(item.variant.origin_id as number) as string,
+      id: existing.get(item.variant.id_origen as number) as string,
       ...variantPayload(item.productId, item.variant),
     }))
 
@@ -465,11 +483,11 @@ async function upsertVariants(
     updated += group.length
   }
 
-  // Sin origin_id no hay llave estable: se insertan como nuevas y se avisa.
+  // Sin id_origen no hay llave estable: se insertan como nuevas y se avisa.
   for (const item of withoutOrigin) {
     pushWarning(
       warnings,
-      `Producto ${item.productOrigin}: una variante sin origin_id se insertó como nueva (no se puede actualizar después).`,
+      `Producto ${item.productOrigin}: una variante sin id_origen se insertó como nueva (no se puede actualizar después).`,
     )
   }
   for (const group of chunk(withoutOrigin, BATCH)) {

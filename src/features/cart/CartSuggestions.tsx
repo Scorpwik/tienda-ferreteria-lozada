@@ -50,6 +50,7 @@ export function CartSuggestions() {
                   product={product}
                   compact
                   eager={!clone}
+                  interactive={!clone}
                 />
               </div>
             )}

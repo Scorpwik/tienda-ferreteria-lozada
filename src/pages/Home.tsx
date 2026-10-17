@@ -1,8 +1,9 @@
 import { ButtonLink } from '@/components/Button'
 import { ProductCardSkeleton } from '@/components/States'
 import { SearchBar } from '@/features/catalog/SearchBar'
-import { ProductGrid } from '@/features/catalog/ProductGrid'
-import { CategoryNav } from '@/features/catalog/CategoryNav'
+import { ProductCard } from '@/features/catalog/ProductCard'
+import { CategoryCards } from '@/features/catalog/CategoryCards'
+import { InfiniteMarquee } from '@/animation/InfiniteMarquee'
 import { HomePromotions } from '@/features/promotions/HomePromotions'
 import { WhatsAppButton } from '@/features/whatsapp/WhatsAppButton'
 import { generalInquiryMessage } from '@/features/whatsapp/buildMessage'
@@ -16,7 +17,7 @@ import { useReducedMotion } from '@/animation/useReducedMotion'
 import { useEffect, useRef } from 'react'
 import gsap from 'gsap'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
-import type { ProductCard } from '@/lib/domain'
+import type { ProductCard as ProductCardData } from '@/lib/domain'
 
 gsap.registerPlugin(ScrollTrigger)
 
@@ -49,8 +50,8 @@ export function HomePage() {
           </h2>
           <SearchBar id="buscador-home" size="lg" />
           <p className="text-ink-500 mt-2.5 text-xs">
-            Busca por nombre, código del producto, medida o marca. Ejemplos:
-            “tornillo 4x1”, “cemento”, “candado”.
+            Combina nombre, medida, color o marca. Ejemplos: “amoladora 9
+            pulgadas”, “spray blanco”, “tornillo 4x1”.
           </p>
         </div>
       </section>
@@ -77,13 +78,18 @@ export function HomePage() {
 
       {tree && tree.length > 0 ? (
         <section className="container-page mt-14 lg:mt-20" aria-labelledby="categorias">
-          <h2
-            id="categorias"
-            className="text-ink-900 mb-4 text-xl font-extrabold tracking-tight"
-          >
-            Explora por categoría
-          </h2>
-          <CategoryNav tree={tree} />
+          <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+            <h2
+              id="categorias"
+              className="text-ink-900 text-xl font-extrabold tracking-tight"
+            >
+              Explora por categoría
+            </h2>
+            <ButtonLink to="/catalogo" variant="outline" size="sm">
+              Ver catálogo
+            </ButtonLink>
+          </div>
+          <CategoryCards tree={tree} />
         </section>
       ) : null}
 
@@ -273,7 +279,7 @@ function HighlightSection({
   id: string
   title: string
   subtitle: string
-  state: { data: ProductCard[] | undefined; loading: boolean }
+  state: { data: ProductCardData[] | undefined; loading: boolean }
   moreTo: string
 }) {
   // Si el admin no marcó nada, la seccion simplemente no aparece.
@@ -297,13 +303,34 @@ function HighlightSection({
       </div>
 
       {state.loading ? (
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-          {Array.from({ length: 4 }, (_, index) => (
-            <ProductCardSkeleton key={index} />
+        <div className="-mx-4 flex gap-4 overflow-hidden px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
+          {Array.from({ length: 5 }, (_, index) => (
+            <div key={index} className="w-[min(72vw,14rem)] shrink-0 sm:w-56">
+              <ProductCardSkeleton />
+            </div>
           ))}
         </div>
       ) : (
-        <ProductGrid products={state.data ?? []} />
+        <InfiniteMarquee
+          className="-mx-4 px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8"
+          items={state.data ?? []}
+          getKey={(product) => product.id}
+          ariaLabel={title}
+          secondsPerItem={4.5}
+          minDuration={22}
+          resumeDelayMs={1500}
+          listClassName="flex gap-4 pr-4"
+          renderItem={(product, { clone, index }) => (
+            <div className="w-[min(72vw,14rem)] shrink-0 sm:w-56">
+              <ProductCard
+                product={product}
+                compact
+                eager={!clone && index < 4}
+                interactive={!clone}
+              />
+            </div>
+          )}
+        />
       )}
     </section>
   )

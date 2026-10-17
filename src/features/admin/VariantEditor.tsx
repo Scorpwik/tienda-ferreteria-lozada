@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Button } from '@/components/Button'
 import { useAdminToast } from './AdminToast'
 import { AdminCard, Field, FormError } from './FormControls'
+import { QuickAvailabilityField, QuickPriceField } from './QuickPriceField'
 import {
   createVariant,
   deleteVariant,
@@ -31,6 +32,29 @@ const emptyVariant: VariantFormValues = {
 
 const availabilityOptions: Availability[] = ['disponible', 'agotado', 'consultar']
 
+const availabilityTone: Record<Availability, string> = {
+  disponible: 'text-emerald-800',
+  agotado: 'text-red-700',
+  consultar: 'text-amber-brand-dark',
+}
+
+function Chevron({ open }: { open: boolean }) {
+  return (
+    <svg
+      viewBox="0 0 20 20"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={`text-ink-500 size-4 shrink-0 transition-transform duration-150 ${open ? 'rotate-90' : ''}`}
+      aria-hidden="true"
+    >
+      <path d="M7 4.5 13 10 7 15.5" />
+    </svg>
+  )
+}
+
 function toFormValues(variant: Variant): VariantFormValues {
   return {
     origin_id: variant.origin_id,
@@ -59,6 +83,22 @@ export function VariantEditor({
   const [form, setForm] = useState<VariantFormValues>(emptyVariant)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [openIds, setOpenIds] = useState<Set<string>>(() => new Set())
+
+  const allOpen = variants.length > 0 && variants.every((variant) => openIds.has(variant.id))
+
+  const toggleOpen = (id: string) => {
+    setOpenIds((current) => {
+      const next = new Set(current)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const toggleAll = () => {
+    setOpenIds(allOpen ? new Set() : new Set(variants.map((variant) => variant.id)))
+  }
 
   const openNew = () => {
     setError(null)
@@ -72,6 +112,7 @@ export function VariantEditor({
     setCreating(false)
     setEditingId(variant.id)
     setForm(toFormValues(variant))
+    setOpenIds((current) => new Set(current).add(variant.id))
   }
 
   const close = () => {
@@ -111,13 +152,6 @@ export function VariantEditor({
     setError(null)
     try {
       await patchVariant(id, patch)
-      if (patch.price !== undefined) {
-        toast.success(`Precio actualizado a ${formatPrice(patch.price)}.`)
-      } else if (patch.availability) {
-        toast.success(
-          `Disponibilidad: ${availabilityLabels[patch.availability]}.`,
-        )
-      }
       onChanged()
     } catch (cause) {
       const message =
@@ -125,6 +159,7 @@ export function VariantEditor({
       setError(message)
       toast.error(message)
       onChanged()
+      throw cause
     }
   }
 
@@ -150,9 +185,16 @@ export function VariantEditor({
       title="Variantes"
       description="Medidas, colores y presentaciones con su precio. Un producto sin variantes no se puede pedir."
       actions={
-        <Button type="button" size="sm" onClick={openNew}>
-          Añadir variante
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          {variants.length > 1 ? (
+            <Button type="button" size="sm" variant="outline" onClick={toggleAll}>
+              {allOpen ? 'Cerrar todas' : 'Abrir todas'}
+            </Button>
+          ) : null}
+          <Button type="button" size="sm" onClick={openNew}>
+            Añadir variante
+          </Button>
+        </div>
       }
     >
       {error ? (
@@ -168,95 +210,111 @@ export function VariantEditor({
         </p>
       ) : (
         <ul className="divide-ink-100 divide-y">
-          {variants.map((variant) => (
-            <li key={variant.id} className="py-3">
-              <div className="flex flex-wrap items-center gap-3">
-                <div className="min-w-0 flex-1">
-                  <p className="text-ink-900 text-sm font-semibold">
-                    {variantFullLabel(variant) || 'Variante única'}
-                  </p>
-                  <p className="text-ink-500 text-xs">
-                    {variant.origin_id ? `Código ${variant.origin_id}` : 'Sin código'}
-                    {variant.barcode ? ` · Barras ${variant.barcode}` : ''}
-                  </p>
-                </div>
+          {variants.map((variant) => {
+            const label = variantFullLabel(variant) || 'Variante única'
+            const open = openIds.has(variant.id)
+            const panelId = `variant-panel-${variant.id}`
+            const missingPrice =
+              variant.availability === 'disponible' && variant.price <= 0
+            const hiddenPrice =
+              variant.availability === 'consultar' && variant.price > 0
 
-                <label className="shrink-0">
-                  <span className="sr-only">
-                    Precio de {variantFullLabel(variant) || 'la variante'}
+            return (
+              <li key={variant.id} className="py-1.5">
+                <button
+                  type="button"
+                  onClick={() => toggleOpen(variant.id)}
+                  aria-expanded={open}
+                  aria-controls={panelId}
+                  className="hover:bg-ink-50 flex w-full items-center gap-2 rounded-lg px-1 py-1.5 text-left"
+                >
+                  <Chevron open={open} />
+                  <span className="min-w-0 flex-1">
+                    <span className="text-ink-900 block truncate text-sm font-semibold">
+                      {label}
+                    </span>
+                    <span className="text-ink-500 block truncate text-xs">
+                      {variant.origin_id ? `Código ${variant.origin_id}` : 'Sin código'}
+                      {variant.barcode ? ` · Barras ${variant.barcode}` : ''}
+                    </span>
                   </span>
-                  <input
-                    // El key fuerza a releer el precio cuando cambia desde el
-                    // formulario: defaultValue solo se aplica al montar.
-                    key={`${variant.id}-${variant.price}`}
-                    type="number"
-                    step="0.0001"
-                    min="0"
-                    defaultValue={variant.price}
-                    onBlur={(event) => {
-                      const next = Number(event.target.value)
-                      if (Number.isFinite(next) && next !== variant.price) {
-                        void quickPatch(variant.id, { price: next })
-                      }
-                    }}
-                    className="admin-input-sm w-28"
-                  />
-                </label>
-
-                <label className="shrink-0">
-                  <span className="sr-only">
-                    Disponibilidad de {variantFullLabel(variant) || 'la variante'}
+                  <span className="text-ink-900 shrink-0 text-sm font-semibold tabular-nums">
+                    {variant.price > 0 ? formatPrice(variant.price) : 'Sin precio'}
                   </span>
-                  <select
-                    value={variant.availability}
-                    onChange={(event) =>
-                      void quickPatch(variant.id, {
-                        availability: event.target.value as Availability,
-                      })
-                    }
-                    className="admin-input-sm w-36"
+                  <span
+                    className={`shrink-0 text-xs font-semibold ${availabilityTone[variant.availability]}`}
                   >
-                    {availabilityOptions.map((option) => (
-                      <option key={option} value={option}>
-                        {availabilityLabels[option]}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                    {availabilityLabels[variant.availability]}
+                  </span>
+                  {missingPrice || hiddenPrice ? (
+                    <span
+                      className="bg-amber-brand size-2 shrink-0 rounded-full"
+                      title="Revisa precio o disponibilidad"
+                    />
+                  ) : null}
+                </button>
 
-                <div className="flex shrink-0 gap-3">
-                  <button
-                    type="button"
-                    onClick={() => openEdit(variant)}
-                    className="text-brand-700 text-sm font-semibold underline"
-                  >
-                    Editar
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void remove(variant)}
-                    className="text-sm font-semibold text-red-700 underline"
-                  >
-                    Borrar
-                  </button>
-                </div>
-              </div>
+                {open ? (
+                  <div id={panelId} className="mt-2 space-y-2 pb-2 pl-7">
+                    <div className="flex flex-wrap items-center gap-3">
+                      <QuickPriceField
+                        value={variant.price}
+                        ariaLabel={`Precio de ${label}`}
+                        onSave={(price) => quickPatch(variant.id, { price })}
+                      />
 
-              {variant.availability === 'disponible' && variant.price <= 0 ? (
-                <p className="text-amber-brand-dark mt-1.5 text-xs font-semibold">
-                  Está marcada como disponible pero sin precio: el cliente no
-                  podrá añadirla al carrito.
-                </p>
-              ) : null}
+                      <QuickAvailabilityField
+                        value={variant.availability}
+                        ariaLabel={`Disponibilidad de ${label}`}
+                        onSave={(availability) =>
+                          quickPatch(variant.id, { availability })
+                        }
+                      />
 
-              {variant.availability !== 'consultar' && variant.price > 0 ? (
-                <p className="text-ink-500 mt-1.5 text-xs">
-                  Se muestra como {formatPrice(variant.price)}
-                  {variant.sale_unit ? ` por ${variant.sale_unit}` : ''}.
-                </p>
-              ) : null}
-            </li>
-          ))}
+                      <div className="flex shrink-0 gap-3">
+                        <button
+                          type="button"
+                          onClick={() => openEdit(variant)}
+                          className="text-brand-700 text-sm font-semibold underline"
+                        >
+                          Editar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void remove(variant)}
+                          className="text-sm font-semibold text-red-700 underline"
+                        >
+                          Borrar
+                        </button>
+                      </div>
+                    </div>
+
+                    {missingPrice ? (
+                      <p className="text-amber-brand-dark text-xs font-semibold">
+                        Está marcada como disponible pero sin precio: el cliente no
+                        podrá añadirla al carrito.
+                      </p>
+                    ) : null}
+
+                    {hiddenPrice ? (
+                      <p className="text-amber-brand-dark text-xs font-semibold">
+                        Tiene precio ({formatPrice(variant.price)}) pero está en
+                        “Consultar”: la tienda no lo muestra. Cambia a Disponible para
+                        publicarlo.
+                      </p>
+                    ) : null}
+
+                    {variant.availability !== 'consultar' && variant.price > 0 ? (
+                      <p className="text-ink-500 text-xs">
+                        Se muestra como {formatPrice(variant.price)}
+                        {variant.sale_unit ? ` por ${variant.sale_unit}` : ''}.
+                      </p>
+                    ) : null}
+                  </div>
+                ) : null}
+              </li>
+            )
+          })}
         </ul>
       )}
 

@@ -19,14 +19,16 @@ export function productPath(product: {
 
 /**
  * Extrae el identificador del parametro de ruta. Acepta "1855",
- * "1855-tornillo-para-madera" y un uuid con o sin sufijo.
+ * "1855-tornillo-para-madera", ids crc32 de 10 cifras
+ * ("1053083248-abrazadera-titan") y un uuid con o sin sufijo.
+ * Hasta 18 dígitos: origin_id es bigint (el de facturación o el crc32).
  */
 export function parseProductParam(
   param: string | undefined,
 ): { kind: 'origin'; originId: number } | { kind: 'id'; id: string } | null {
   if (!param) return null
 
-  const numeric = /^(\d{1,9})(?:-|$)/.exec(param)
+  const numeric = /^(\d{1,18})(?:-|$)/.exec(param)
   if (numeric) return { kind: 'origin', originId: Number(numeric[1]) }
 
   const uuid =

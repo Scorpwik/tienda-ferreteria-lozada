@@ -25,7 +25,7 @@ export function Header({ actions }: { actions?: ReactNode }) {
 
   return (
     <header className="border-ink-100 sticky top-0 z-40 border-b bg-white/95 backdrop-blur">
-      <div className="container-page">
+      <div className="container-wide">
         <div className="flex items-center gap-4 py-3">
           <Logo />
 

@@ -22,7 +22,7 @@ export function CatalogPage() {
   })
 
   return (
-    <div className="container-page py-8">
+    <div className="container-wide py-8">
       <Breadcrumbs items={[{ label: 'Inicio', to: '/' }, { label: 'Catálogo' }]} />
 
       <h1 className="text-ink-900 text-2xl font-extrabold tracking-tight sm:text-3xl">
@@ -33,7 +33,7 @@ export function CatalogPage() {
         WhatsApp y te ayudamos a elegir.
       </p>
 
-      <div className="mt-8 lg:grid lg:grid-cols-[16rem_1fr] lg:gap-10">
+      <div className="mt-8 lg:grid lg:grid-cols-[16rem_minmax(0,1fr)] lg:gap-8">
         <aside className="mb-6 lg:mb-0">
           <CategoryNav tree={tree ?? []} />
         </aside>
