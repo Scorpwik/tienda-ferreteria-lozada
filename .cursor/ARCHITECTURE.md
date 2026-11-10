@@ -563,7 +563,7 @@ SELECT * FROM site_settings;
 ## Referencia rápida: URLs clave
 
 - **Supabase Dashboard**: https://app.supabase.com/ (tu proyecto)
-- **GitHub**: https://github.com/scorpwik/PaginaWebFerreteriaLozada
+- **GitHub**: https://github.com/Scorpwik/tienda-ferreteria-lozada
 - **Local frontend**: http://localhost:5173
 - **Local Supabase** (si usas `supabase start`): http://localhost:54321
 
