@@ -16,10 +16,10 @@ function Chevron({ open }: { open: boolean }) {
       viewBox="0 0 20 20"
       fill="none"
       stroke="currentColor"
-      strokeWidth="1.8"
+      strokeWidth="1.6"
       strokeLinecap="round"
       strokeLinejoin="round"
-      className={`size-4 shrink-0 transition-transform duration-150 ${open ? 'rotate-90' : ''}`}
+      className={`size-4 shrink-0 opacity-80 transition-transform duration-150 ${open ? 'rotate-90' : ''}`}
       aria-hidden="true"
     >
       <path d="M7 4.5 13 10 7 15.5" />
@@ -42,7 +42,7 @@ function CategoryExpandButton({
   return (
     <button
       type="button"
-      className="border-ink-200 bg-ink-50 text-ink-600 grid size-11 min-h-11 min-w-11 shrink-0 place-items-center rounded-lg border shadow-sm transition-[colors,transform,box-shadow] hover:border-ink-300 hover:bg-white hover:text-ink-900 hover:shadow-md active:scale-[0.97] active:bg-ink-100 active:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600/50 focus-visible:ring-offset-2 aria-expanded:border-brand-300 aria-expanded:bg-white aria-expanded:text-brand-700 aria-expanded:shadow-md"
+      className="text-ink-400 bg-ink-50/40 grid size-11 min-h-11 min-w-11 shrink-0 place-items-center rounded-lg border border-ink-100/60 shadow-none transition-[colors,transform,box-shadow] hover:border-ink-100 hover:bg-ink-50/80 hover:text-ink-500 hover:shadow-sm hover:shadow-ink-900/5 active:scale-[0.98] active:bg-ink-100/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600/40 focus-visible:ring-offset-2 aria-expanded:border-brand-200/50 aria-expanded:bg-brand-50/40 aria-expanded:text-brand-600 aria-expanded:shadow-sm aria-expanded:shadow-brand-900/5"
       aria-expanded={open}
       aria-controls={panelId}
       aria-label={open ? `Ocultar subcategorías de ${label}` : `Ver subcategorías de ${label}`}
