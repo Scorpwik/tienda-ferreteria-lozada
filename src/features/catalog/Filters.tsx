@@ -1,5 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { Range, getTrackBackground } from 'react-range'
+import { BottomSheet } from '@/components/BottomSheet'
+import { useIsDesktop } from '@/animation/useIsDesktop'
 import { formatMoney } from '@/lib/format'
 import type { Availability } from '@/lib/domain'
 
@@ -54,6 +56,206 @@ function snap(value: number, step: number): number {
   return Number(rounded.toFixed(step < 1 ? 2 : 0))
 }
 
+type FilterFieldsProps = {
+  value: CatalogFiltersValue
+  onChange: (next: CatalogFiltersValue) => void
+  draftRange: [number, number]
+  setDraftRange: (next: [number, number]) => void
+  dragging: boolean
+  setDragging: (next: boolean) => void
+  minBound: number
+  maxBound: number
+  step: number
+  commitRange: (next: [number, number]) => void
+  onlyOffers: boolean
+  onlyBestsellers: boolean
+  onToggleOffers?: () => void
+  onToggleBestsellers?: () => void
+  clearFilters: () => void
+  onDone: () => void
+  availabilityName?: string
+}
+
+function FilterFields({
+  value,
+  onChange,
+  draftRange,
+  setDraftRange,
+  dragging,
+  setDragging,
+  minBound,
+  maxBound,
+  step,
+  commitRange,
+  onlyOffers,
+  onlyBestsellers,
+  onToggleOffers,
+  onToggleBestsellers,
+  clearFilters,
+  onDone,
+  availabilityName = 'filtro-disponibilidad',
+}: FilterFieldsProps) {
+  return (
+    <>
+      <fieldset className="mb-5">
+        <legend className="text-ink-900 mb-3 text-sm font-bold">
+          Rango de precio
+        </legend>
+        <p className="text-ink-700 mb-4 text-sm font-semibold tabular-nums">
+          {formatMoney(draftRange[0])} – {formatMoney(draftRange[1])}
+        </p>
+
+        <Range
+          values={draftRange}
+          step={step}
+          min={minBound}
+          max={maxBound}
+          onChange={(values) => {
+            setDragging(true)
+            setDraftRange([values[0], values[1]])
+          }}
+          onFinalChange={(values) => {
+            const next: [number, number] = [values[0], values[1]]
+            setDraftRange(next)
+            setDragging(false)
+            commitRange(next)
+          }}
+          renderTrack={({ props, children }) => (
+            <div
+              onMouseDown={props.onMouseDown}
+              onTouchStart={props.onTouchStart}
+              className="flex h-8 w-full items-center"
+              style={props.style}
+            >
+              <div
+                ref={props.ref}
+                className="h-1.5 w-full rounded-full"
+                style={{
+                  background: getTrackBackground({
+                    values: draftRange,
+                    colors: ['#e5e5e5', '#c62603', '#e5e5e5'],
+                    min: minBound,
+                    max: maxBound,
+                  }),
+                }}
+              >
+                {children}
+              </div>
+            </div>
+          )}
+          renderThumb={({ props, isDragged }) => {
+            const { key, ...thumbProps } = props
+            const active = isDragged || dragging
+            return (
+              <div
+                key={key}
+                {...thumbProps}
+                className={`border-brand-700 size-5 rounded-full border-2 bg-white shadow-md outline-none ring-brand-600 focus-visible:ring-2 ${
+                  active ? 'scale-110' : ''
+                }`}
+                style={{
+                  ...thumbProps.style,
+                  transition: 'none',
+                }}
+              />
+            )
+          }}
+        />
+
+        <div className="text-ink-400 mt-2 flex justify-between text-xs">
+          <span>{formatMoney(minBound)}</span>
+          <span>{formatMoney(maxBound)}</span>
+        </div>
+      </fieldset>
+
+      {onToggleOffers && onToggleBestsellers ? (
+        <fieldset className="mb-5">
+          <legend className="text-ink-900 mb-3 text-sm font-bold">Destacados</legend>
+          <div className="flex flex-col gap-2">
+            <button
+              type="button"
+              aria-pressed={onlyOffers}
+              onClick={onToggleOffers}
+              className={`rounded-lg border px-3 py-2.5 text-left text-sm font-semibold ${
+                onlyOffers
+                  ? 'border-brand-600 bg-brand-50 text-brand-800'
+                  : 'border-ink-200 text-ink-800 hover:border-ink-300'
+              }`}
+            >
+              Solo ofertas
+            </button>
+            <button
+              type="button"
+              aria-pressed={onlyBestsellers}
+              onClick={onToggleBestsellers}
+              className={`rounded-lg border px-3 py-2.5 text-left text-sm font-semibold ${
+                onlyBestsellers
+                  ? 'border-brand-600 bg-brand-50 text-brand-800'
+                  : 'border-ink-200 text-ink-800 hover:border-ink-300'
+              }`}
+            >
+              Solo más vendidos
+            </button>
+          </div>
+        </fieldset>
+      ) : null}
+
+      <fieldset>
+        <legend className="text-ink-900 mb-3 text-sm font-bold">Disponibilidad</legend>
+        <div className="flex flex-col gap-2">
+          {availabilityOptions.map((option) => {
+            const checked = (value.availability ?? '') === option.value
+            return (
+              <label
+                key={option.value || 'todas'}
+                className={`border-ink-200 flex cursor-pointer items-center gap-3 rounded-lg border px-3 py-2.5 text-sm font-semibold transition-colors ${
+                  checked
+                    ? 'border-brand-600 bg-brand-50 text-brand-800'
+                    : 'bg-white text-ink-800 hover:border-ink-300'
+                }`}
+              >
+                <input
+                  type="radio"
+                  name={availabilityName}
+                  value={option.value}
+                  checked={checked}
+                  onChange={() =>
+                    onChange({
+                      ...value,
+                      availability: option.value
+                        ? (option.value as Availability)
+                        : null,
+                    })
+                  }
+                  className="accent-brand-700 size-4"
+                />
+                {option.label}
+              </label>
+            )
+          })}
+        </div>
+      </fieldset>
+
+      <div className="mt-5 flex flex-wrap gap-2 border-t border-ink-100 pt-4">
+        <button
+          type="button"
+          onClick={clearFilters}
+          className="text-ink-600 hover:text-ink-900 text-sm font-semibold underline decoration-dotted"
+        >
+          Limpiar filtros
+        </button>
+        <button
+          type="button"
+          onClick={onDone}
+          className="bg-brand-700 ml-auto rounded-lg px-4 py-2 text-sm font-semibold text-white hover:bg-brand-800"
+        >
+          Ver resultados
+        </button>
+      </div>
+    </>
+  )
+}
+
 /**
  * Panel "Filtros": rango de precio + disponibilidad.
  * Ofertas / más vendidos viven fuera, en la barra del catálogo.
@@ -70,6 +272,7 @@ export function Filters({
   const panelId = useId()
   const rootRef = useRef<HTMLDivElement>(null)
   const [open, setOpen] = useState(false)
+  const isDesktop = useIsDesktop()
   const ceiling = Math.max(1, priceCeiling)
   const step = priceStep(ceiling)
 
@@ -91,7 +294,7 @@ export function Filters({
   }, [value.priceMin, value.priceMax, minBound, maxBound])
 
   useEffect(() => {
-    if (!open) return
+    if (!open || !isDesktop) return
 
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') setOpen(false)
@@ -111,19 +314,7 @@ export function Filters({
       document.removeEventListener('mousedown', onPointer)
       document.removeEventListener('touchstart', onPointer)
     }
-  }, [open])
-
-  useEffect(() => {
-    if (!open) return
-    const previous = document.body.style.overflow
-    // En móvil el sheet ocupa la mitad inferior; evita scroll del fondo.
-    if (window.matchMedia('(max-width: 1023px)').matches) {
-      document.body.style.overflow = 'hidden'
-    }
-    return () => {
-      document.body.style.overflow = previous
-    }
-  }, [open])
+  }, [open, isDesktop])
 
   const activeCount =
     (value.availability ? 1 : 0) +
@@ -170,206 +361,66 @@ export function Filters({
         ) : null}
       </button>
 
-      {open ? (
-        <>
-          <button
-            type="button"
-            className="fixed inset-0 z-40 bg-ink-950/40 lg:hidden"
-            aria-label="Cerrar filtros"
-            onClick={() => setOpen(false)}
+      {!isDesktop ? (
+        <BottomSheet
+          open={open}
+          onClose={() => setOpen(false)}
+          title="Filtros"
+          description="Precio y disponibilidad por medida."
+        >
+          <FilterFields
+            value={value}
+            onChange={onChange}
+            draftRange={draftRange}
+            setDraftRange={setDraftRange}
+            dragging={dragging}
+            setDragging={setDragging}
+            minBound={minBound}
+            maxBound={maxBound}
+            step={step}
+            commitRange={commitRange}
+            onlyOffers={onlyOffers}
+            onlyBestsellers={onlyBestsellers}
+            onToggleOffers={onToggleOffers}
+            onToggleBestsellers={onToggleBestsellers}
+            clearFilters={clearFilters}
+            onDone={() => setOpen(false)}
           />
-
-          <div
-            id={panelId}
-            role="dialog"
-            aria-modal="true"
-            aria-label="Filtros del catálogo"
-            className="border-ink-100 fixed inset-x-0 bottom-0 z-50 max-h-[85dvh] overflow-y-auto rounded-t-2xl border bg-white p-5 shadow-2xl lg:absolute lg:inset-x-auto lg:bottom-auto lg:left-0 lg:top-full lg:mt-2 lg:max-h-none lg:w-[min(22rem,calc(100vw-2rem))] lg:rounded-xl lg:shadow-xl"
-          >
-            <div className="bg-ink-200 mx-auto mb-4 h-1 w-10 rounded-full lg:hidden" />
-
-            <div className="mb-4 flex items-start justify-between gap-3">
-              <div>
-                <h2 className="text-ink-900 text-base font-extrabold">Filtros</h2>
-                <p className="text-ink-500 mt-0.5 text-xs">
-                  Precio y disponibilidad por medida.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setOpen(false)}
-                className="text-ink-500 hover:text-ink-900 grid size-9 place-items-center rounded-lg text-xl leading-none"
-                aria-label="Cerrar"
-              >
-                ×
-              </button>
-            </div>
-
-            <fieldset className="mb-5">
-              <legend className="text-ink-900 mb-3 text-sm font-bold">
-                Rango de precio
-              </legend>
-              <p className="text-ink-700 mb-4 text-sm font-semibold tabular-nums">
-                {formatMoney(draftRange[0])} – {formatMoney(draftRange[1])}
-              </p>
-
-              <Range
-                values={draftRange}
-                step={step}
-                min={minBound}
-                max={maxBound}
-                onChange={(values) => {
-                  setDragging(true)
-                  setDraftRange([values[0], values[1]])
-                }}
-                onFinalChange={(values) => {
-                  const next: [number, number] = [values[0], values[1]]
-                  setDraftRange(next)
-                  setDragging(false)
-                  commitRange(next)
-                }}
-                renderTrack={({ props, children }) => (
-                  <div
-                    onMouseDown={props.onMouseDown}
-                    onTouchStart={props.onTouchStart}
-                    className="flex h-8 w-full items-center"
-                    style={props.style}
-                  >
-                    <div
-                      ref={props.ref}
-                      className="h-1.5 w-full rounded-full"
-                      style={{
-                        background: getTrackBackground({
-                          values: draftRange,
-                          colors: ['#e5e5e5', '#c62603', '#e5e5e5'],
-                          min: minBound,
-                          max: maxBound,
-                        }),
-                        // Sin transition de fondo: anima el track y “se sale” del dedo.
-                      }}
-                    >
-                      {children}
-                    </div>
-                  </div>
-                )}
-                renderThumb={({ props, isDragged }) => {
-                  const { key, ...thumbProps } = props
-                  const active = isDragged || dragging
-                  return (
-                    <div
-                      key={key}
-                      {...thumbProps}
-                      className={`border-brand-700 size-5 rounded-full border-2 bg-white shadow-md outline-none ring-brand-600 focus-visible:ring-2 ${
-                        active ? 'scale-110' : ''
-                      }`}
-                      style={{
-                        ...thumbProps.style,
-                        // Nunca animar left/transform: react-range posiciona el thumb
-                        // con eso; una transition hace que se desfase del cursor.
-                        transition: 'none',
-                      }}
-                    />
-                  )
-                }}
-              />
-
-              <div className="text-ink-400 mt-2 flex justify-between text-xs">
-                <span>{formatMoney(minBound)}</span>
-                <span>{formatMoney(maxBound)}</span>
-              </div>
-            </fieldset>
-
-            {onToggleOffers && onToggleBestsellers ? (
-              <fieldset className="mb-5">
-                <legend className="text-ink-900 mb-3 text-sm font-bold">
-                  Destacados
-                </legend>
-                <div className="flex flex-col gap-2">
-                  <button
-                    type="button"
-                    aria-pressed={onlyOffers}
-                    onClick={onToggleOffers}
-                    className={`rounded-lg border px-3 py-2.5 text-left text-sm font-semibold ${
-                      onlyOffers
-                        ? 'border-brand-600 bg-brand-50 text-brand-800'
-                        : 'border-ink-200 text-ink-800 hover:border-ink-300'
-                    }`}
-                  >
-                    Solo ofertas
-                  </button>
-                  <button
-                    type="button"
-                    aria-pressed={onlyBestsellers}
-                    onClick={onToggleBestsellers}
-                    className={`rounded-lg border px-3 py-2.5 text-left text-sm font-semibold ${
-                      onlyBestsellers
-                        ? 'border-brand-600 bg-brand-50 text-brand-800'
-                        : 'border-ink-200 text-ink-800 hover:border-ink-300'
-                    }`}
-                  >
-                    Solo más vendidos
-                  </button>
-                </div>
-              </fieldset>
-            ) : null}
-
-            <fieldset>
-              <legend className="text-ink-900 mb-3 text-sm font-bold">
-                Disponibilidad
-              </legend>
-              <div className="flex flex-col gap-2">
-                {availabilityOptions.map((option) => {
-                  const checked =
-                    (value.availability ?? '') === option.value
-                  return (
-                    <label
-                      key={option.value || 'todas'}
-                      className={`border-ink-200 flex cursor-pointer items-center gap-3 rounded-lg border px-3 py-2.5 text-sm font-semibold transition-colors ${
-                        checked
-                          ? 'border-brand-600 bg-brand-50 text-brand-800'
-                          : 'bg-white text-ink-800 hover:border-ink-300'
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        name="filtro-disponibilidad"
-                        value={option.value}
-                        checked={checked}
-                        onChange={() =>
-                          onChange({
-                            ...value,
-                            availability: option.value
-                              ? (option.value as Availability)
-                              : null,
-                          })
-                        }
-                        className="accent-brand-700 size-4"
-                      />
-                      {option.label}
-                    </label>
-                  )
-                })}
-              </div>
-            </fieldset>
-
-            <div className="mt-5 flex flex-wrap gap-2 border-t border-ink-100 pt-4">
-              <button
-                type="button"
-                onClick={clearFilters}
-                className="text-ink-600 hover:text-ink-900 text-sm font-semibold underline decoration-dotted"
-              >
-                Limpiar filtros
-              </button>
-              <button
-                type="button"
-                onClick={() => setOpen(false)}
-                className="bg-brand-700 ml-auto rounded-lg px-4 py-2 text-sm font-semibold text-white hover:bg-brand-800"
-              >
-                Ver resultados
-              </button>
-            </div>
+        </BottomSheet>
+      ) : open ? (
+        <div
+          id={panelId}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Filtros del catálogo"
+          className="border-ink-100 absolute left-0 top-full z-50 mt-2 w-[min(22rem,calc(100vw-2rem))] rounded-xl border bg-white p-5 shadow-xl"
+        >
+          <div className="mb-4">
+            <h2 className="text-ink-900 text-base font-extrabold">Filtros</h2>
+            <p className="text-ink-500 mt-0.5 text-xs">
+              Precio y disponibilidad por medida.
+            </p>
           </div>
-        </>
+          <FilterFields
+            value={value}
+            onChange={onChange}
+            draftRange={draftRange}
+            setDraftRange={setDraftRange}
+            dragging={dragging}
+            setDragging={setDragging}
+            minBound={minBound}
+            maxBound={maxBound}
+            step={step}
+            commitRange={commitRange}
+            onlyOffers={onlyOffers}
+            onlyBestsellers={onlyBestsellers}
+            onToggleOffers={onToggleOffers}
+            onToggleBestsellers={onToggleBestsellers}
+            clearFilters={clearFilters}
+            onDone={() => setOpen(false)}
+            availabilityName="filtro-disponibilidad-desktop"
+          />
+        </div>
       ) : null}
     </div>
   )

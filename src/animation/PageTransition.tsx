@@ -1,7 +1,6 @@
 import type { ReactNode } from 'react'
 import { useEffect, useRef } from 'react'
 import { useLocation } from 'react-router-dom'
-import gsap from 'gsap'
 import { useIsDesktop } from './useIsDesktop'
 import { useReducedMotion } from './useReducedMotion'
 
@@ -19,15 +18,26 @@ export function PageTransition({ children }: { children: ReactNode }) {
     const node = rootRef.current
     if (!node || reduced || !isDesktop) return
 
-    const ctx = gsap.context(() => {
-      gsap.fromTo(
-        node,
-        { autoAlpha: 0, y: 10 },
-        { autoAlpha: 1, y: 0, duration: 0.36, ease: 'power2.out' },
-      )
-    }, node)
+    let cancelled = false
+    let cleanup: (() => void) | undefined
 
-    return () => ctx.revert()
+    void import('gsap').then(({ default: gsap }) => {
+      const target = rootRef.current
+      if (cancelled || !target) return
+      const ctx = gsap.context(() => {
+        gsap.fromTo(
+          target,
+          { autoAlpha: 0, y: 10 },
+          { autoAlpha: 1, y: 0, duration: 0.36, ease: 'power2.out' },
+        )
+      }, target)
+      cleanup = () => ctx.revert()
+    })
+
+    return () => {
+      cancelled = true
+      cleanup?.()
+    }
   }, [pathname, reduced, isDesktop])
 
   return (

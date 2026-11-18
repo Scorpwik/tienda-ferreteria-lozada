@@ -7,9 +7,7 @@ Auditoría mobile-first (≈390px) y escritorio (≈1440px) con las skills del r
 
 ## Resumen en corto
 
-La tienda **sí vende** cuando el catálogo carga: buenas fotos, precio visible, botón “Agregar”. El problema fuerte en móvil era el **bloque de categorías**: buscador + doble fila de pastillas horizontales comían la pantalla antes de los productos, se veían recortadas y competían con el buscador principal. En este PR se reemplazó por **un solo botón** que abre un **panel desde abajo** (mismo árbol que en escritorio) y se metieron “Solo ofertas / Más vendidos” dentro de **Filtros** en móvil para bajar ruido.
-
-Siguen temas mayores (no tocados o solo documentados): WhatsApp flotante tapa contenido, cabecera de catálogo muy larga, variantes en ficha de producto, y peso del JS inicial.
+La tienda **sí vende** cuando el catálogo carga: buenas fotos, precio visible, botón “Agregar”. En móvil se corrigió el **bloque de categorías** (panel inferior), se compactó la **cabecera del catálogo**, el **WhatsApp flotante** deja de tapar el grid al hacer scroll, y el **JS inicial** baja con rutas en lazy load + carga diferida de Lenis/GSAP. Quedan propuestas grandes (barra inferior unificada, specs con tabla importada, un solo sheet “Refinar”).
 
 ---
 
@@ -18,7 +16,7 @@ Siguen temas mayores (no tocados o solo documentados): WhatsApp flotante tapa co
 | Qué pasa | Por qué duele | Estado |
 | --- | --- | --- |
 | El buscador grande está bien ubicado | Encaja con “¿Qué necesitas para tu obra?” | OK |
-| Mucho scroll hasta productos en móvil | Hero + buscador + promos antes de ofertas | **Propuesta:** acortar hero móvil o ancla “Ver ofertas” |
+| Mucho scroll hasta productos en móvil | Hero + buscador + promos antes de ofertas | **Parcial:** hero móvil más bajo (`pt-8`); falta ancla “Ver ofertas” |
 | Tarjetas de producto legibles | Precio y nombre claros | OK |
 
 ---
@@ -27,18 +25,18 @@ Siguen temas mayores (no tocados o solo documentados): WhatsApp flotante tapa co
 
 | Qué pasaba (antes) | Por qué duele en ventas | Qué hicimos |
 | --- | --- | --- |
-| Buscador de categoría + pastillas horizontales (2 filas) | El maestro no ve productos sin hacer mucho scroll; confunde “buscar categoría” vs “buscar producto” | Botón **Categoría: …** + panel inferior con árbol, chevrones y subcategorías (como sidebar) |
-| Placeholder del buscador truncado (“…códi”) | Parece roto, menos confianza | Texto más corto: “Buscar producto, medida o código”; input `text-base` (16px) |
-| Tres botones de fila (Filtros + ofertas + más vendidos) | Apretados en pantallas chicas | En móvil: ofertas/más vendidos **dentro** del sheet de Filtros |
-| Productos desde ~mitad de pantalla | Menos impresiones por visita | Mejor con el nuevo control de categoría |
+| Buscador de categoría + pastillas horizontales (2 filas) | El maestro no ve productos sin hacer mucho scroll | Botón **Categoría: …** + `BottomSheet` con árbol |
+| Placeholder del buscador truncado | Parece roto | Placeholder corto + `text-base` |
+| Tres botones de fila (Filtros + ofertas + más vendidos) | Apretados | Ofertas/más vendidos dentro del sheet de Filtros en móvil |
+| Título largo + párrafo siempre visible | Come altura antes del grid | Título **Catálogo** / **Búsqueda: …**, párrafo solo `sm+`, menos padding |
+| WhatsApp flotante sobre cards | Tap accidental, tapa foto | FAB más pequeño, `z-40`, safe-area, **oculto al bajar** scroll; `main` con padding inferior en móvil |
 
 | Pendiente | Impacto |
 | --- | --- |
-| Título + párrafo + breadcrumbs siempre arriba | Sigue ocupando espacio; considerar título más corto en móvil | Medio |
-| Contador “24 de 1248” lejos del grid | Poco crítico | Bajo |
-| WhatsApp flotante sobre la 2.ª columna de cards | Tap accidental, tapa foto | **Alto** — subir margen inferior del grid o bajar z-index con safe-area |
+| Contador “24 de 1248” lejos del grid | Bajo |
+| Unificar categorías + filtros en un sheet con pestañas | Medio — propuesta mayor |
 
-**Capturas:** `docs/critica/catalogo-mobile-antes.png` (producción anterior) vs panel en preview del PR.
+**Capturas:** `docs/critica/catalogo-mobile-antes.png` vs `catalogo-mobile-despues.png`.
 
 ---
 
@@ -48,9 +46,8 @@ Siguen temas mayores (no tocados o solo documentados): WhatsApp flotante tapa co
 | --- | --- | --- |
 | Imagen y precio visibles | Bien para decisión rápida | OK |
 | Variantes (medida, color, etc.) | Si hay muchas, hace falta jerarquía clara | Revisar chips vs selects en móvil |
-| Uso / descripción técnica | Ayuda a vender a quien no conoce el ítem | Depende del copy importado del Excel |
-
-**Propuesta:** bloque fijo “Para qué sirve” + tabla de medidas siempre bajo el precio en móvil.
+| Uso / descripción técnica | Ayuda a vender | **Hecho:** bloque **“Para qué sirve”** bajo el precio (copy del catálogo) |
+| Tabla de medidas importada | Datos del Excel | **Pendiente** — hace falta modelo de datos / import |
 
 ---
 
@@ -60,7 +57,7 @@ Siguen temas mayores (no tocados o solo documentados): WhatsApp flotante tapa co
 | --- | --- | --- |
 | Mensaje claro si está vacío | Guía al catálogo | OK |
 | Flujo solo nombre → PDF/WhatsApp | Correcto para el negocio | OK |
-| Cotizar con carrito vacío | Debe redirigir o avisar | Verificar en QA |
+| Cotizar con carrito vacío | Debe redirigir | **OK** — `Navigate` a `/carrito` si el carrito está vacío |
 
 ---
 
@@ -75,11 +72,11 @@ Siguen temas mayores (no tocados o solo documentados): WhatsApp flotante tapa co
 
 ## Cabecera, menú y WhatsApp
 
-| Qué pasa | Por qué duele | Propuesta |
-| --- | --- | --- |
-| Carrito + menú hamburguesa | Patrón conocido | OK |
-| Botón WhatsApp verde flotante | Siempre visible, pero tapa cards y enlaces del pie | `bottom: env(safe-area)` + colapsar al scroll, o barra inferior “Cotizar / WhatsApp” |
-| Menú móvil sin enlace directo a categorías | Ahora el catálogo compensa con el panel | Aceptable |
+| Qué pasa | Estado |
+| --- | --- |
+| Carrito + menú hamburguesa | OK |
+| Botón WhatsApp verde flotante | **Hecho:** colapsa al scroll hacia abajo, vuelve al subir; tamaño menor en móvil |
+| Menú móvil sin enlace directo a categorías | Aceptable (panel en catálogo) |
 
 ---
 
@@ -87,30 +84,42 @@ Siguen temas mayores (no tocados o solo documentados): WhatsApp flotante tapa co
 
 | Tema | Estado |
 | --- | --- |
-| Panel categorías: foco, Escape, cierre, `aria-modal` | **Implementado** en `BottomSheet` |
-| Panel Filtros: ya tenía backdrop móvil | Mejorar foco igual que categorías — **propuesta** |
+| Panel categorías: foco, Escape, `aria-modal` | **Implementado** (`BottomSheet`) |
+| Panel Filtros móvil | **Implementado** — mismo `BottomSheet` + trampa de foco |
 | Contraste marca #F23005 | Vigilar en fondos claros |
-| `prefers-reduced-motion` | Animación del sheet respeta reducción global en CSS |
+| `prefers-reduced-motion` | Sheet + transiciones respetan reducción |
+
+---
+
+## Rendimiento (JS)
+
+| Medida | Estado |
+| --- | --- |
+| Rutas públicas en `React.lazy` | **Hecho** (`App.tsx`) |
+| Lenis + reveals + transiciones | **Hecho** — chunk `PublicMotionShell` tras `requestIdleCallback` |
+| GSAP en Home / transición desktop | **Hecho** — `import()` dinámico (no en el chunk inicial del shell) |
+| Recharts (admin) | Ya en rutas admin lazy; sin cambio |
+| Chunk principal | Mejor repartido; medir con `npm run build` tras cada cambio |
 
 ---
 
 ## Cambios incluidos en este PR (código)
 
-1. `BottomSheet` reutilizable con trampa de foco y bloqueo de scroll.
-2. `CategoryNav` móvil: botón compacto + panel inferior con buscador y árbol.
-3. `Filters`: destacados dentro del sheet en móvil; chips en `lg+`.
-4. `SearchBar`: placeholder y tamaño de texto en móvil.
-5. `Catalog.tsx`: espaciado mobile-first.
+1. `BottomSheet` + `CategoryNav` móvil.
+2. `Filters`: destacados en sheet; **móvil usa `BottomSheet`** (misma a11y que categorías).
+3. `SearchBar`, `Catalog.tsx`, `Category.tsx`: cabecera compacta en móvil.
+4. `WhatsAppFloatingButton` + `useFabOnScroll` + padding en `main`.
+5. `App.tsx`: lazy routes + `PublicMotionShell` diferido.
+6. `Home.tsx`: hero más bajo en móvil; GSAP hero solo con import dinámico.
+7. `Product.tsx`: sección **“Para qué sirve”**.
 
 ---
 
-## Propuestas mayores para que Joshua apruebe
+## Propuestas mayores (sin implementar — requieren decisión)
 
-1. **Barra de acción inferior en móvil** (Catálogo / Ficha / Carrito): “Buscar · Categoría · Carrito · WhatsApp”.
-2. **WhatsApp:** dejar de flotar sobre el grid; anclar al borde con margen o integrar al pie sticky.
-3. **Ficha:** sección “Especificaciones” siempre visible (acordeón si hace falta).
-4. **Rendimiento:** reducir chunk principal (>500 KB) para INP en celulares de obra.
-5. **Unificar sheets:** categorías y filtros en un solo “Refinar catálogo” con pestañas (Categoría | Filtros).
+1. **Barra de acción inferior** (Catálogo / Ficha / Carrito): “Buscar · Categoría · Carrito · WhatsApp”.
+2. **Ficha:** acordeón de especificaciones con datos estructurados del import.
+3. **Unificar sheets:** un solo “Refinar catálogo” con pestañas (Categoría | Filtros).
 
 ---
 
@@ -119,7 +128,7 @@ Siguen temas mayores (no tocados o solo documentados): WhatsApp flotante tapa co
 | Archivo | Contenido |
 | --- | --- |
 | `docs/critica/catalogo-mobile-antes.png` | Producción antes del panel (pastillas) |
-| `docs/critica/catalogo-mobile-despues.png` | Preview del PR con botón + sheet |
+| `docs/critica/catalogo-mobile-despues.png` | Preview con botón + sheet |
 | `docs/critica/catalogo-mobile-categorias-sheet.png` | Panel de categorías abierto |
 
 Más capturas en el cuerpo del PR (home, producto, carrito, escritorio).

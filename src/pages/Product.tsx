@@ -193,9 +193,12 @@ export function ProductPage() {
           </div>
 
           {data.description ? (
-            <p className="text-ink-700 mt-5 whitespace-pre-line text-sm leading-relaxed">
-              {data.description}
-            </p>
+            <div className="border-ink-100 mt-5 border-t pt-4 lg:mt-6">
+              <h2 className="text-ink-900 text-sm font-bold">Para qué sirve</h2>
+              <p className="text-ink-700 mt-2 whitespace-pre-line text-sm leading-relaxed">
+                {data.description}
+              </p>
+            </div>
           ) : null}
 
           <div className="mt-7">

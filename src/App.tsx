@@ -1,4 +1,4 @@
-import { lazy, Suspense } from 'react'
+import { lazy, Suspense, useEffect, useState, type ComponentType, type ReactNode } from 'react'
 import { matchPath, Outlet, Route, Routes, useLocation } from 'react-router-dom'
 import { Analytics } from '@vercel/analytics/react'
 import { SettingsProvider } from '@/features/settings/SettingsProvider'
@@ -13,19 +13,35 @@ import { CartBadge } from '@/layout/CartBadge'
 import { WhatsAppFloatingButton } from '@/layout/WhatsAppFloatingButton'
 import { AdminLayout } from '@/layout/AdminLayout'
 import { ScrollToTop } from '@/layout/ScrollToTop'
-import { LenisProvider } from '@/animation/LenisProvider'
-import { RevealOnScroll } from '@/animation/RevealOnScroll'
-import { PageTransition } from '@/animation/PageTransition'
 import { useStructuredData } from '@/lib/useDocumentMeta'
-import { HomePage } from '@/pages/Home'
-import { CatalogPage } from '@/pages/Catalog'
-import { CategoryPage } from '@/pages/Category'
-import { ProductPage } from '@/pages/Product'
-import { CartPage } from '@/pages/Cart'
-import { QuotePage } from '@/pages/Quote'
-import { AboutPage } from '@/pages/About'
-import { PromotionsPage } from '@/pages/Promotions'
-import { NotFoundPage } from '@/pages/NotFound'
+
+const HomePage = lazy(() =>
+  import('@/pages/Home').then((m) => ({ default: m.HomePage })),
+)
+const CatalogPage = lazy(() =>
+  import('@/pages/Catalog').then((m) => ({ default: m.CatalogPage })),
+)
+const CategoryPage = lazy(() =>
+  import('@/pages/Category').then((m) => ({ default: m.CategoryPage })),
+)
+const ProductPage = lazy(() =>
+  import('@/pages/Product').then((m) => ({ default: m.ProductPage })),
+)
+const CartPage = lazy(() =>
+  import('@/pages/Cart').then((m) => ({ default: m.CartPage })),
+)
+const QuotePage = lazy(() =>
+  import('@/pages/Quote').then((m) => ({ default: m.QuotePage })),
+)
+const AboutPage = lazy(() =>
+  import('@/pages/About').then((m) => ({ default: m.AboutPage })),
+)
+const PromotionsPage = lazy(() =>
+  import('@/pages/Promotions').then((m) => ({ default: m.PromotionsPage })),
+)
+const NotFoundPage = lazy(() =>
+  import('@/pages/NotFound').then((m) => ({ default: m.NotFoundPage })),
+)
 
 /** LocalBusiness una sola vez en el árbol (no por página). */
 const HARDWARE_STORE_JSON_LD = {
@@ -100,6 +116,14 @@ function RouteAnalytics() {
   return <Analytics route={route} path={pathname} />
 }
 
+function PublicPageFallback() {
+  return (
+    <div className="flex min-h-[50vh] items-center justify-center">
+      <Spinner label="Cargando" />
+    </div>
+  )
+}
+
 function AdminArea() {
   return (
     <AuthProvider>
@@ -118,46 +142,77 @@ function AdminArea() {
   )
 }
 
+type MotionShellProps = { children: ReactNode }
+
 function PublicShell() {
+  const [MotionShell, setMotionShell] = useState<ComponentType<MotionShellProps> | null>(
+    null,
+  )
+
+  useEffect(() => {
+    const schedule =
+      typeof window.requestIdleCallback === 'function'
+        ? window.requestIdleCallback
+        : (cb: () => void) => window.setTimeout(cb, 1)
+    const cancel =
+      typeof window.cancelIdleCallback === 'function'
+        ? window.cancelIdleCallback
+        : (id: number) => window.clearTimeout(id)
+
+    const id = schedule(() => {
+      void import('@/animation/PublicMotionShell').then((m) => {
+        setMotionShell(() => m.PublicMotionShell)
+      })
+    })
+
+    return () => cancel(id as number)
+  }, [])
+
+  const routes = (
+    <Suspense fallback={<PublicPageFallback />}>
+      <Routes>
+        <Route path="/" element={<HomePage />} />
+        <Route path="/catalogo" element={<CatalogPage />} />
+        <Route path="/catalogo/:parentSlug" element={<CategoryPage />} />
+        <Route
+          path="/catalogo/:parentSlug/:childSlug"
+          element={<CategoryPage />}
+        />
+        <Route path="/producto/:originId" element={<ProductPage />} />
+        <Route path="/carrito" element={<CartPage />} />
+        <Route path="/carrito/cotizar" element={<QuotePage />} />
+        <Route path="/nosotros" element={<AboutPage />} />
+        <Route path="/promociones" element={<PromotionsPage />} />
+        <Route path="*" element={<NotFoundPage />} />
+      </Routes>
+    </Suspense>
+  )
+
+  const pageContent = MotionShell ? <MotionShell>{routes}</MotionShell> : routes
+
   return (
     <CartProvider>
-      <LenisProvider>
-        <RevealOnScroll />
-        <a
-          href="#contenido"
-          className="sr-only-focusable bg-brand-700 focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:px-4 focus:py-2 focus:font-semibold focus:text-white"
+      <a
+        href="#contenido"
+        className="sr-only-focusable bg-brand-700 focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:px-4 focus:py-2 focus:font-semibold focus:text-white"
+      >
+        Saltar al contenido
+      </a>
+
+      <div className="flex min-h-dvh flex-col">
+        <Header actions={<CartBadge />} />
+
+        <main
+          id="contenido"
+          className="flex-1 pb-[max(4.5rem,env(safe-area-inset-bottom))] lg:pb-0"
         >
-          Saltar al contenido
-        </a>
+          {pageContent}
+        </main>
 
-        <div className="flex min-h-dvh flex-col">
-          <Header actions={<CartBadge />} />
+        <Footer />
+      </div>
 
-          <main id="contenido" className="flex-1">
-            <PageTransition>
-              <Routes>
-                <Route path="/" element={<HomePage />} />
-                <Route path="/catalogo" element={<CatalogPage />} />
-                <Route path="/catalogo/:parentSlug" element={<CategoryPage />} />
-                <Route
-                  path="/catalogo/:parentSlug/:childSlug"
-                  element={<CategoryPage />}
-                />
-                <Route path="/producto/:originId" element={<ProductPage />} />
-                <Route path="/carrito" element={<CartPage />} />
-                <Route path="/carrito/cotizar" element={<QuotePage />} />
-                <Route path="/nosotros" element={<AboutPage />} />
-                <Route path="/promociones" element={<PromotionsPage />} />
-                <Route path="*" element={<NotFoundPage />} />
-              </Routes>
-            </PageTransition>
-          </main>
-
-          <Footer />
-        </div>
-
-        <WhatsAppFloatingButton />
-      </LenisProvider>
+      <WhatsAppFloatingButton />
     </CartProvider>
   )
 }
