@@ -163,6 +163,15 @@
   }
 }
 
+@keyframes sheet-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
 /* Si el usuario pide menos movimiento, se apaga todo: la velocidad y la
    comodidad ganan siempre sobre la animacion. */
 @media (prefers-reduced-motion: reduce) {

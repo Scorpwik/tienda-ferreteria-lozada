@@ -15,11 +15,7 @@ import { useDocumentMeta } from '@/lib/useDocumentMeta'
 import { useIsDesktop } from '@/animation/useIsDesktop'
 import { useReducedMotion } from '@/animation/useReducedMotion'
 import { useEffect, useRef } from 'react'
-import gsap from 'gsap'
-import { ScrollTrigger } from 'gsap/ScrollTrigger'
 import type { ProductCard as ProductCardData } from '@/lib/domain'
-
-gsap.registerPlugin(ScrollTrigger)
 
 export function HomePage() {
   const settings = useSettings()
@@ -115,30 +111,44 @@ function Hero() {
     const media = mediaRef.current
     if (!hasPhoto || !isDesktop || reducedMotion || !section || !media) return
 
-    const ctx = gsap.context(() => {
-      gsap.fromTo(
-        media,
-        { yPercent: -6 },
-        {
-          yPercent: 10,
-          ease: 'none',
-          scrollTrigger: {
-            trigger: section,
-            start: 'top top',
-            end: 'bottom top',
-            scrub: 0.55,
-          },
-        },
-      )
-    }, section)
+    let cancelled = false
+    let cleanup: (() => void) | undefined
 
-    return () => ctx.revert()
+    void Promise.all([
+      import('gsap'),
+      import('gsap/ScrollTrigger'),
+    ]).then(([{ default: gsap }, { ScrollTrigger }]) => {
+      if (cancelled) return
+      gsap.registerPlugin(ScrollTrigger)
+      const ctx = gsap.context(() => {
+        gsap.fromTo(
+          media,
+          { yPercent: -6 },
+          {
+            yPercent: 10,
+            ease: 'none',
+            scrollTrigger: {
+              trigger: section,
+              start: 'top top',
+              end: 'bottom top',
+              scrub: 0.55,
+            },
+          },
+        )
+      }, section)
+      cleanup = () => ctx.revert()
+    })
+
+    return () => {
+      cancelled = true
+      cleanup?.()
+    }
   }, [hasPhoto, isDesktop, reducedMotion])
 
   return (
     <section
       ref={sectionRef}
-      className="relative z-0 overflow-hidden bg-ink-900 pt-12 sm:pt-16 lg:pt-20"
+      className="relative z-0 overflow-hidden bg-ink-900 pt-8 sm:pt-14 lg:pt-20"
     >
       {hasPhoto ? (
         <>

@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
 import { CategorySearch } from './CategorySearch'
+import { BottomSheet } from '@/components/BottomSheet'
 import { categoryPath } from '@/lib/routes'
 import type { CategoryNode } from '@/lib/domain'
 
@@ -8,11 +9,6 @@ const allLinkClass = (isActive: boolean) =>
   isActive
     ? 'bg-brand-50 text-brand-700 block rounded-lg px-3 py-2 text-sm font-semibold'
     : 'text-ink-700 hover:bg-ink-50 block rounded-lg px-3 py-2 text-sm font-semibold'
-
-const allChipClass = (isActive: boolean) =>
-  isActive
-    ? 'bg-brand-700 inline-flex whitespace-nowrap rounded-full px-4 py-2 text-sm font-semibold text-white'
-    : 'border-ink-200 text-ink-700 inline-flex whitespace-nowrap rounded-full border px-4 py-2 text-sm font-semibold'
 
 function Chevron({ open }: { open: boolean }) {
   return (
@@ -31,14 +27,151 @@ function Chevron({ open }: { open: boolean }) {
   )
 }
 
+function ChevronDown() {
+  return (
+    <svg
+      viewBox="0 0 20 20"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="text-ink-500 size-5 shrink-0"
+      aria-hidden="true"
+    >
+      <path d="M5 7.5 10 12.5 15 7.5" />
+    </svg>
+  )
+}
+
 function parentIsActive(node: CategoryNode, pathname: string) {
   const parentPath = categoryPath(node.slug)
   return pathname === parentPath || pathname.startsWith(`${parentPath}/`)
 }
 
+function resolveSelectionLabel(
+  pathname: string,
+  tree: CategoryNode[],
+  activeSlug?: string,
+): string {
+  if (pathname === '/catalogo') return 'Todo el catálogo'
+
+  for (const node of tree) {
+    const parentPath = categoryPath(node.slug)
+    if (pathname === parentPath) return node.name
+    for (const child of node.children) {
+      const childPath = categoryPath(node.slug, child.slug)
+      if (pathname === childPath || activeSlug === child.slug) {
+        return child.name
+      }
+    }
+    if (parentIsActive(node, pathname) && node.children.length === 0) {
+      return node.name
+    }
+  }
+
+  return 'Elegir categoría'
+}
+
+function CategoryTreeList({
+  tree,
+  openIds,
+  toggle,
+  onPick,
+}: {
+  tree: CategoryNode[]
+  openIds: Set<string>
+  toggle: (id: string) => void
+  onPick?: () => void
+}) {
+  const { pathname } = useLocation()
+  const allActive = pathname === '/catalogo'
+
+  return (
+    <ul className="space-y-0.5">
+      <li>
+        <NavLink
+          to="/catalogo"
+          end
+          className={() => allLinkClass(allActive)}
+          onClick={onPick}
+        >
+          Todo
+        </NavLink>
+      </li>
+      {tree.map((node) => {
+        const hasChildren = node.children.length > 0
+        const open = hasChildren && openIds.has(node.id)
+        const panelId = `cat-children-${node.id}`
+
+        return (
+          <li key={node.id}>
+            <div className="flex items-stretch gap-0.5">
+              <NavLink
+                to={categoryPath(node.slug)}
+                onClick={onPick}
+                className={({ isActive }) =>
+                  `min-w-0 flex-1 rounded-lg px-3 py-2.5 text-sm font-semibold ${
+                    isActive
+                      ? 'bg-brand-50 text-brand-700'
+                      : 'text-ink-700 hover:bg-ink-50'
+                  }`
+                }
+              >
+                {node.name}
+              </NavLink>
+              {hasChildren ? (
+                <button
+                  type="button"
+                  className="text-ink-500 hover:bg-ink-50 hover:text-ink-800 grid size-11 shrink-0 place-items-center rounded-lg"
+                  aria-expanded={open}
+                  aria-controls={panelId}
+                  aria-label={
+                    open
+                      ? `Ocultar subcategorías de ${node.name}`
+                      : `Ver subcategorías de ${node.name}`
+                  }
+                  onClick={() => toggle(node.id)}
+                >
+                  <Chevron open={open} />
+                </button>
+              ) : null}
+            </div>
+
+            {hasChildren && open ? (
+              <ul
+                id={panelId}
+                className="border-ink-100 ml-3 mt-1 space-y-0.5 border-l pl-3"
+              >
+                {node.children.map((child) => (
+                  <li key={child.id}>
+                    <NavLink
+                      to={categoryPath(node.slug, child.slug)}
+                      onClick={onPick}
+                      className={({ isActive }) =>
+                        `block rounded-lg px-3 py-2 text-sm ${
+                          isActive
+                            ? 'text-brand-700 font-semibold'
+                            : 'text-ink-600 hover:text-ink-900'
+                        }`
+                      }
+                    >
+                      {child.name}
+                    </NavLink>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </li>
+        )
+      })}
+    </ul>
+  )
+}
+
 /**
- * Arbol de categorias colapsado. El cliente abre solo la rama que le interesa.
- * En movil se muestran chips de categorias padre (sin volcar todas las hijas).
+ * Arbol de categorias colapsado. En escritorio: sidebar. En móvil: un botón
+ * que abre panel inferior con el mismo arbol (sin fila de pastillas).
  */
 export function CategoryNav({
   tree,
@@ -48,8 +181,8 @@ export function CategoryNav({
   activeSlug?: string
 }) {
   const { pathname } = useLocation()
-  const allActive = pathname === '/catalogo'
   const [openIds, setOpenIds] = useState<Set<string>>(() => new Set())
+  const [sheetOpen, setSheetOpen] = useState(false)
 
   useEffect(() => {
     const activeParent = tree.find((node) => parentIsActive(node, pathname))
@@ -62,6 +195,10 @@ export function CategoryNav({
     })
   }, [pathname, tree])
 
+  useEffect(() => {
+    setSheetOpen(false)
+  }, [pathname])
+
   const toggle = (id: string) => {
     setOpenIds((prev) => {
       const next = new Set(prev)
@@ -71,9 +208,12 @@ export function CategoryNav({
     })
   }
 
-  if (tree.length === 0) return null
+  const selectionLabel = useMemo(
+    () => resolveSelectionLabel(pathname, tree, activeSlug),
+    [pathname, tree, activeSlug],
+  )
 
-  const activeParent = tree.find((node) => parentIsActive(node, pathname))
+  if (tree.length === 0) return null
 
   return (
     <>
@@ -82,123 +222,47 @@ export function CategoryNav({
           Categorías
         </h2>
         <CategorySearch tree={tree} />
-        <ul className="mt-3 space-y-0.5">
-          <li>
-            <NavLink to="/catalogo" end className={() => allLinkClass(allActive)}>
-              Todo
-            </NavLink>
-          </li>
-          {tree.map((node) => {
-            const hasChildren = node.children.length > 0
-            const open = hasChildren && openIds.has(node.id)
-            const panelId = `cat-children-${node.id}`
-
-            return (
-              <li key={node.id}>
-                <div className="flex items-stretch gap-0.5">
-                  <NavLink
-                    to={categoryPath(node.slug)}
-                    className={({ isActive }) =>
-                      `min-w-0 flex-1 rounded-lg px-3 py-2 text-sm font-semibold ${
-                        isActive
-                          ? 'bg-brand-50 text-brand-700'
-                          : 'text-ink-700 hover:bg-ink-50'
-                      }`
-                    }
-                  >
-                    {node.name}
-                  </NavLink>
-                  {hasChildren ? (
-                    <button
-                      type="button"
-                      className="text-ink-500 hover:bg-ink-50 hover:text-ink-800 grid size-9 shrink-0 place-items-center rounded-lg"
-                      aria-expanded={open}
-                      aria-controls={panelId}
-                      aria-label={
-                        open
-                          ? `Ocultar subcategorías de ${node.name}`
-                          : `Ver subcategorías de ${node.name}`
-                      }
-                      onClick={() => toggle(node.id)}
-                    >
-                      <Chevron open={open} />
-                    </button>
-                  ) : null}
-                </div>
-
-                {hasChildren && open ? (
-                  <ul
-                    id={panelId}
-                    className="border-ink-100 ml-3 mt-1 space-y-0.5 border-l pl-3"
-                  >
-                    {node.children.map((child) => (
-                      <li key={child.id}>
-                        <NavLink
-                          to={categoryPath(node.slug, child.slug)}
-                          className={({ isActive }) =>
-                            `block rounded-lg px-3 py-1.5 text-sm ${
-                              isActive
-                                ? 'text-brand-700 font-semibold'
-                                : 'text-ink-600 hover:text-ink-900'
-                            }`
-                          }
-                        >
-                          {child.name}
-                        </NavLink>
-                      </li>
-                    ))}
-                  </ul>
-                ) : null}
-              </li>
-            )
-          })}
-        </ul>
+        <div className="mt-3">
+          <CategoryTreeList tree={tree} openIds={openIds} toggle={toggle} />
+        </div>
       </nav>
 
       <div className="lg:hidden">
-        <h2 className="text-ink-900 mb-2 text-sm font-bold uppercase tracking-wide">
-          Categorías
-        </h2>
-        <CategorySearch tree={tree} />
-        <ul className="-mx-4 mt-3 flex snap-x gap-2 overflow-x-auto px-4 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          <li className="snap-start">
-            <NavLink to="/catalogo" end className={allChipClass(allActive)}>
-              Todo
-            </NavLink>
-          </li>
-          {tree.map((node) => (
-            <li key={node.id} className="snap-start">
-              <NavLink
-                to={categoryPath(node.slug)}
-                className={
-                  activeSlug === node.slug || activeParent?.id === node.id
-                    ? 'bg-brand-700 inline-flex whitespace-nowrap rounded-full px-4 py-2 text-sm font-semibold text-white'
-                    : 'border-ink-200 text-ink-700 inline-flex whitespace-nowrap rounded-full border px-4 py-2 text-sm font-semibold'
-                }
-              >
-                {node.name}
-              </NavLink>
-            </li>
-          ))}
-        </ul>
-        {activeParent && activeParent.children.length > 0 ? (
-          <ul className="-mx-4 mt-2 flex snap-x gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            {activeParent.children.map((child) => (
-              <li key={child.id} className="snap-start">
-                <NavLink
-                  to={categoryPath(activeParent.slug, child.slug)}
-                  className={
-                    activeSlug === child.slug
-                      ? 'bg-brand-50 text-brand-700 inline-flex whitespace-nowrap rounded-full px-3 py-1.5 text-sm font-semibold'
-                      : 'text-ink-600 hover:text-ink-900 inline-flex whitespace-nowrap px-3 py-1.5 text-sm'
-                  }
-                >
-                  {child.name}
-                </NavLink>
-              </li>
-            ))}
-          </ul>
-        ) : null}
+        <button
+          type="button"
+          onClick={() => setSheetOpen(true)}
+          className="border-ink-200 text-ink-900 hover:border-brand-600 flex w-full min-h-12 items-center justify-between gap-3 rounded-xl border-2 bg-white px-4 py-3 text-left shadow-sm"
+          aria-haspopup="dialog"
+          aria-expanded={sheetOpen}
+        >
+          <span className="min-w-0">
+            <span className="text-ink-500 block text-xs font-bold uppercase tracking-wide">
+              Categoría
+            </span>
+            <span className="text-ink-900 block truncate text-sm font-extrabold">
+              {selectionLabel}
+            </span>
+          </span>
+          <ChevronDown />
+        </button>
+
+        <BottomSheet
+          open={sheetOpen}
+          onClose={() => setSheetOpen(false)}
+          title="Categorías"
+          description="Elige una familia o subcategoría. El catálogo se actualiza al seleccionar."
+          closeLabel="Cerrar categorías"
+        >
+          <CategorySearch tree={tree} />
+          <div className="mt-4">
+            <CategoryTreeList
+              tree={tree}
+              openIds={openIds}
+              toggle={toggle}
+              onPick={() => setSheetOpen(false)}
+            />
+          </div>
+        </BottomSheet>
       </div>
     </>
   )

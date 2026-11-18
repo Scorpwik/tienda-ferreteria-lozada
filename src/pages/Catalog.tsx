@@ -22,23 +22,25 @@ export function CatalogPage() {
   })
 
   return (
-    <div className="container-wide py-8">
+    <div className="container-wide py-5 sm:py-6 lg:py-8">
       <Breadcrumbs items={[{ label: 'Inicio', to: '/' }, { label: 'Catálogo' }]} />
 
-      <h1 className="text-ink-900 text-2xl font-extrabold tracking-tight sm:text-3xl">
-        {search ? 'Resultados de búsqueda' : 'Catálogo completo'}
+      <h1 className="text-ink-900 text-xl font-extrabold tracking-tight sm:text-2xl lg:text-3xl">
+        {search ? `Búsqueda: ${search}` : 'Catálogo'}
       </h1>
-      <p className="text-ink-600 mt-2 max-w-2xl text-sm">
+      <p className="text-ink-600 mt-1.5 hidden max-w-2xl text-sm sm:block">
         Si no encuentras algo o no sabes qué medida necesitas, escríbenos por
         WhatsApp y te ayudamos a elegir.
       </p>
 
-      <div className="mt-8 lg:grid lg:grid-cols-[16rem_minmax(0,1fr)] lg:gap-8">
-        <aside className="mb-6 lg:mb-0">
+      <div className="mt-4 flex flex-col gap-4 sm:mt-5 lg:mt-8 lg:grid lg:grid-cols-[16rem_minmax(0,1fr)] lg:gap-8">
+        <aside className="shrink-0 lg:mb-0">
           <CategoryNav tree={tree ?? []} />
         </aside>
 
-        <CatalogBrowser />
+        <div className="min-w-0">
+          <CatalogBrowser />
+        </div>
       </div>
     </div>
   )

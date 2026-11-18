@@ -170,13 +170,19 @@ export function CatalogBrowser({
               pmax: next.priceMax != null ? String(next.priceMax) : null,
             })
           }
+          onlyOffers={onlyOffers}
+          onlyBestsellers={onlyBestsellers}
+          onToggleOffers={() => update({ oferta: onlyOffers ? null : '1' })}
+          onToggleBestsellers={() =>
+            update({ 'mas-vendidos': onlyBestsellers ? null : '1' })
+          }
         />
 
         <button
           type="button"
           onClick={() => update({ oferta: onlyOffers ? null : '1' })}
           aria-pressed={onlyOffers}
-          className={`rounded-full border-2 px-3 py-2 text-sm font-semibold transition-colors ${
+          className={`hidden rounded-full border-2 px-3 py-2 text-sm font-semibold transition-colors lg:inline-flex ${
             onlyOffers
               ? 'border-brand-600 bg-brand-50 text-brand-800'
               : 'border-ink-200 bg-white text-ink-800 hover:border-ink-300'
@@ -191,7 +197,7 @@ export function CatalogBrowser({
             update({ 'mas-vendidos': onlyBestsellers ? null : '1' })
           }
           aria-pressed={onlyBestsellers}
-          className={`rounded-full border-2 px-3 py-2 text-sm font-semibold transition-colors ${
+          className={`hidden rounded-full border-2 px-3 py-2 text-sm font-semibold transition-colors lg:inline-flex ${
             onlyBestsellers
               ? 'border-brand-600 bg-brand-50 text-brand-800'
               : 'border-ink-200 bg-white text-ink-800 hover:border-ink-300'

@@ -66,7 +66,7 @@ export function CategoryPage() {
   const tree = buildCategoryTree(categories)
 
   return (
-    <div className="container-wide py-8">
+    <div className="container-wide py-5 sm:py-6 lg:py-8">
       <Breadcrumbs
         items={[
           { label: 'Inicio', to: '/' },
@@ -76,11 +76,11 @@ export function CategoryPage() {
         ]}
       />
 
-      <h1 className="text-ink-900 text-2xl font-extrabold tracking-tight sm:text-3xl">
+      <h1 className="text-ink-900 text-xl font-extrabold tracking-tight sm:text-2xl lg:text-3xl">
         {current.name}
       </h1>
 
-      <div className="mt-8 lg:grid lg:grid-cols-[16rem_minmax(0,1fr)] lg:gap-8">
+      <div className="mt-4 sm:mt-5 lg:mt-8 lg:grid lg:grid-cols-[16rem_minmax(0,1fr)] lg:gap-8">
         <aside className="mb-6 lg:mb-0">
           <CategoryNav tree={tree} activeSlug={current.slug} />
         </aside>

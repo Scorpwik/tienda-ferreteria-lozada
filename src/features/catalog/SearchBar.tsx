@@ -167,9 +167,13 @@ export function SearchBar({
             if (!(next instanceof Node) || rootRef.current?.contains(next)) return
             closeSuggestions()
           }}
-          placeholder="Nombre, medida, color o código. Ej: amoladora 9 pulgadas"
-          className={`border-ink-200 placeholder:text-ink-400 focus:border-brand-600 w-full rounded-xl border-2 bg-white pl-12 pr-28 font-medium shadow-sm transition-colors focus:outline-none ${
-            tall ? 'py-4 text-base' : 'py-3 text-[0.9375rem]'
+          placeholder={
+            tall
+              ? 'Nombre, medida, color o código'
+              : 'Buscar producto, medida o código'
+          }
+          className={`border-ink-200 placeholder:text-ink-400 focus:border-brand-600 w-full rounded-xl border-2 bg-white pl-12 pr-[5.5rem] font-medium shadow-sm transition-colors focus:outline-none sm:pr-28 ${
+            tall ? 'py-4 text-base' : 'py-3 text-base'
           }`}
         />
         <button
