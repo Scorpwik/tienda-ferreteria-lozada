@@ -20,6 +20,10 @@ type Props = {
   value: CatalogFiltersValue
   priceCeiling: number
   onChange: (next: CatalogFiltersValue) => void
+  onlyOffers?: boolean
+  onlyBestsellers?: boolean
+  onToggleOffers?: () => void
+  onToggleBestsellers?: () => void
 }
 
 function FilterIcon({ className = '' }: { className?: string }) {
@@ -54,7 +58,15 @@ function snap(value: number, step: number): number {
  * Panel "Filtros": rango de precio + disponibilidad.
  * Ofertas / más vendidos viven fuera, en la barra del catálogo.
  */
-export function Filters({ value, priceCeiling, onChange }: Props) {
+export function Filters({
+  value,
+  priceCeiling,
+  onChange,
+  onlyOffers = false,
+  onlyBestsellers = false,
+  onToggleOffers,
+  onToggleBestsellers,
+}: Props) {
   const panelId = useId()
   const rootRef = useRef<HTMLDivElement>(null)
   const [open, setOpen] = useState(false)
@@ -115,7 +127,9 @@ export function Filters({ value, priceCeiling, onChange }: Props) {
 
   const activeCount =
     (value.availability ? 1 : 0) +
-    (value.priceMin != null || value.priceMax != null ? 1 : 0)
+    (value.priceMin != null || value.priceMax != null ? 1 : 0) +
+    (onlyOffers ? 1 : 0) +
+    (onlyBestsellers ? 1 : 0)
 
   const commitRange = (next: [number, number]) => {
     const [rawMin, rawMax] = next
@@ -264,6 +278,40 @@ export function Filters({ value, priceCeiling, onChange }: Props) {
                 <span>{formatMoney(maxBound)}</span>
               </div>
             </fieldset>
+
+            {onToggleOffers && onToggleBestsellers ? (
+              <fieldset className="mb-5">
+                <legend className="text-ink-900 mb-3 text-sm font-bold">
+                  Destacados
+                </legend>
+                <div className="flex flex-col gap-2">
+                  <button
+                    type="button"
+                    aria-pressed={onlyOffers}
+                    onClick={onToggleOffers}
+                    className={`rounded-lg border px-3 py-2.5 text-left text-sm font-semibold ${
+                      onlyOffers
+                        ? 'border-brand-600 bg-brand-50 text-brand-800'
+                        : 'border-ink-200 text-ink-800 hover:border-ink-300'
+                    }`}
+                  >
+                    Solo ofertas
+                  </button>
+                  <button
+                    type="button"
+                    aria-pressed={onlyBestsellers}
+                    onClick={onToggleBestsellers}
+                    className={`rounded-lg border px-3 py-2.5 text-left text-sm font-semibold ${
+                      onlyBestsellers
+                        ? 'border-brand-600 bg-brand-50 text-brand-800'
+                        : 'border-ink-200 text-ink-800 hover:border-ink-300'
+                    }`}
+                  >
+                    Solo más vendidos
+                  </button>
+                </div>
+              </fieldset>
+            ) : null}
 
             <fieldset>
               <legend className="text-ink-900 mb-3 text-sm font-bold">

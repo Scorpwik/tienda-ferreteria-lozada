@@ -33,12 +33,14 @@ export function CatalogPage() {
         WhatsApp y te ayudamos a elegir.
       </p>
 
-      <div className="mt-8 lg:grid lg:grid-cols-[16rem_minmax(0,1fr)] lg:gap-8">
-        <aside className="mb-6 lg:mb-0">
+      <div className="mt-6 flex flex-col gap-5 lg:mt-8 lg:grid lg:grid-cols-[16rem_minmax(0,1fr)] lg:gap-8">
+        <aside className="shrink-0 lg:mb-0">
           <CategoryNav tree={tree ?? []} />
         </aside>
 
-        <CatalogBrowser />
+        <div className="min-w-0">
+          <CatalogBrowser />
+        </div>
       </div>
     </div>
   )
