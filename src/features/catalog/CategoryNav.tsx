@@ -27,6 +27,32 @@ function Chevron({ open }: { open: boolean }) {
   )
 }
 
+/** Botón aparte de la fila de categoría: expandir subcategorías (móvil y sidebar). */
+function CategoryExpandButton({
+  open,
+  label,
+  panelId,
+  onToggle,
+}: {
+  open: boolean
+  label: string
+  panelId: string
+  onToggle: () => void
+}) {
+  return (
+    <button
+      type="button"
+      className="border-ink-200 bg-ink-50 text-ink-600 grid size-11 min-h-11 min-w-11 shrink-0 place-items-center rounded-lg border shadow-sm transition-[colors,transform,box-shadow] hover:border-ink-300 hover:bg-white hover:text-ink-900 hover:shadow-md active:scale-[0.97] active:bg-ink-100 active:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600/50 focus-visible:ring-offset-2 aria-expanded:border-brand-300 aria-expanded:bg-white aria-expanded:text-brand-700 aria-expanded:shadow-md"
+      aria-expanded={open}
+      aria-controls={panelId}
+      aria-label={open ? `Ocultar subcategorías de ${label}` : `Ver subcategorías de ${label}`}
+      onClick={onToggle}
+    >
+      <Chevron open={open} />
+    </button>
+  )
+}
+
 function ChevronDown() {
   return (
     <svg
@@ -106,7 +132,7 @@ function CategoryTreeList({
 
         return (
           <li key={node.id}>
-            <div className="flex items-stretch gap-0.5">
+            <div className="flex items-stretch gap-2">
               <NavLink
                 to={categoryPath(node.slug)}
                 onClick={onPick}
@@ -121,20 +147,12 @@ function CategoryTreeList({
                 {node.name}
               </NavLink>
               {hasChildren ? (
-                <button
-                  type="button"
-                  className="text-ink-500 hover:bg-ink-50 hover:text-ink-800 grid size-11 shrink-0 place-items-center rounded-lg"
-                  aria-expanded={open}
-                  aria-controls={panelId}
-                  aria-label={
-                    open
-                      ? `Ocultar subcategorías de ${node.name}`
-                      : `Ver subcategorías de ${node.name}`
-                  }
-                  onClick={() => toggle(node.id)}
-                >
-                  <Chevron open={open} />
-                </button>
+                <CategoryExpandButton
+                  open={open}
+                  label={node.name}
+                  panelId={panelId}
+                  onToggle={() => toggle(node.id)}
+                />
               ) : null}
             </div>
 
