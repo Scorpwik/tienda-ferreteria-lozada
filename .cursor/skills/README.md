@@ -1,19 +1,38 @@
-# Skills de diseño UI/UX (Cursor)
+# Skills para agentes Cursor
 
-Conjunto de **Agent Skills** para que los agentes de Cursor diseñen y revisen la tienda Ferretería Lozada con criterio mobile-first, accesibilidad y foco en venta/cotización.
+Skills en **dos carpetas**: diseño/UX en `.cursor/skills/`; stack y calidad en `.agents/skills/` (vía `skills-lock.json`).
 
-Lee siempre `.cursor/cursor_rules` y `.cursor/ARCHITECTURE.md` además de estas skills.
+**Siempre:** `.cursor/cursor_rules`, `.cursor/ARCHITECTURE.md`, y la skill **`ferreteria-design-context`** antes de cambiar UI.
 
-| Skill | Para qué sirve | Origen |
+## `.cursor/skills/` (diseño UX, este catálogo)
+
+| Skill | Para qué sirve |
+| --- | --- |
+| **ferreteria-design-context** | Marca, audiencia, stack y reglas locales |
+| **web-design-guidelines** | Auditoría Web Interface Guidelines (Vercel) |
+| **ui-design-critique** | Informe de crítica de página/componente |
+| **ux-writing** | Microcopy en español ecuatoriano |
+| **mobile-first-responsive** | Móvil, touch, breakpoints Tailwind 4 |
+| **commerce-product-pages** | Fichas de producto y catálogo |
+
+## `.agents/skills/` (stack; 23 en `skills-lock.json`)
+
+| Skill | Para qué sirve | Fuente |
 | --- | --- | --- |
-| **frontend-design** | Dirección visual intencional; evitar estéticas genéricas de IA; tipografía, layout y motion con criterio. | [anthropics/skills](https://github.com/anthropics/skills) (Apache-2.0) |
-| **web-design-guidelines** | Auditoría de código UI contra las Web Interface Guidelines de Vercel (`file:line`). | [vercel-labs/agent-skills](https://github.com/vercel-labs/agent-skills) |
-| **accessibility** | WCAG 2.2, teclado, contraste, formularios y árbol de accesibilidad. | [addyosmani/web-quality-skills](https://github.com/addyosmani/web-quality-skills) (MIT) |
-| **ui-design-critique** | Informe de crítica de página/componente con problemas concretos y prioridades. | Adaptado desde [kursku/skills](https://github.com/kursku/skills) + heurísticas Nielsen |
-| **ux-writing** | Microcopy: botones, errores, vacíos, tono español ecuatoriano. | [slb2248/ai-ux-skills](https://github.com/slb2248/ai-ux-skills) (MIT) |
-| **mobile-first-responsive** | Breakpoints Tailwind 4, touch targets, inputs en móvil, CLS. | Síntesis Vercel Guidelines + arquitectura local (MIT) |
-| **commerce-product-pages** | Fichas de ferretería: medidas, variantes, specs, carrito/cotización. | Skill propia del repo (MIT) |
+| **accessibility** | WCAG 2.2, auditoría a11y | [addyosmani/web-quality-skills](https://github.com/addyosmani/web-quality-skills) |
+| **composition-patterns** | Patrones React por composición | [vercel-labs/agent-skills](https://github.com/vercel-labs/agent-skills) |
+| **deploy-to-vercel** | Deploy en Vercel | vercel-labs/agent-skills |
+| **frontend-design** | Dirección visual, anti‑patrones IA | [anthropics/skills](https://github.com/anthropics/skills) |
+| **gsap-core** … **gsap-utils** | Animación GSAP | [greensock/gsap-skills](https://github.com/greensock/gsap-skills) |
+| **nodejs-backend-patterns** | Patrones backend Node | [wshobson/agents](https://github.com/wshobson/agents) |
+| **nodejs-best-practices** | Node.js | antigravity-awesome-skills |
+| **playwright-dev** | E2E / Playwright | microsoft/playwright |
+| **react-best-practices** | Rendimiento React | vercel-labs/agent-skills |
+| **seo** | SEO técnico | addyosmani/web-quality-skills |
+| **supabase-postgres-best-practices** | Postgres / Supabase | supabase/agent-skills |
+| **tailwind-css-patterns** | Tailwind utility-first | developer-kit |
+| **typescript-advanced-types** | TypeScript | wshobson/agents |
+| **vite** / **vitest** | Build y pruebas | antfu/skills |
+| **zod** | Validación | pproenca/dot-skills |
 
-Cada carpeta incluye `ATTRIBUTION.md` con licencia y URL de origen.
-
-**Nota:** En `.agents/skills/` hay otras skills (React, Tailwind, GSAP, etc.). Las de esta carpeta están orientadas a **diseño y UX** para agentes en Cursor.
+Cada skill en `.cursor/skills/` incluye `ATTRIBUTION.md` cuando aplica. En `.agents/skills/`, ver licencias del repo de origen en `skills-lock.json`.

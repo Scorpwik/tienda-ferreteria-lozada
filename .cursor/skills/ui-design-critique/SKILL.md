@@ -6,7 +6,7 @@ license: MIT
 
 Basado en marcos públicos de crítica de diseño (p. ej. kursku/skills `frontend/critique`, heurísticas de Nielsen). Adaptado para Ferretería Lozada.
 
-**Primero:** lee `.cursor/cursor_rules`, `.cursor/ARCHITECTURE.md` y usa la skill `frontend-design` para anti‑patrones visuales.
+**Primero:** lee `ferreteria-design-context`, `.cursor/cursor_rules`, `.cursor/ARCHITECTURE.md` y `.agents/skills/frontend-design` para anti‑patrones visuales.
 
 ## Cuándo ejecutar
 
